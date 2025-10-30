@@ -237,7 +237,7 @@
 
     function resetGame() {
       score = 0; lives = 3; level = 1; nextLevelScore = 50;
-      basketX = canvas.width / 2 - 40; basketWidth = 100; basketHeight = 35; speed = 12;
+      basketX = canvas.width / 2 - 40; basketWidth = 110; basketHeight = 38; speed = 7;
       eggs = []; goldenEggs = []; texts = [];
       setupChickens();
       scoreDisplay.textContent = 'Punkty: 0';
@@ -248,7 +248,50 @@
       gameLoop();
     }
 
-    function drawBasket() { ctx.fillStyle = '#d2b48c'; ctx.fillRect(basketX, canvas.height - basketHeight - 10, basketWidth, basketHeight); ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 3; ctx.strokeRect(basketX, canvas.height - basketHeight - 10, basketWidth, basketHeight); }
+    function drawBasket() {
+      const basketY = canvas.height - basketHeight - 10;
+      const left = basketX;
+      const right = basketX + basketWidth;
+      const gradient = ctx.createLinearGradient(0, basketY, 0, basketY + basketHeight);
+      gradient.addColorStop(0, '#f4d7a6');
+      gradient.addColorStop(1, '#c79253');
+
+      ctx.beginPath();
+      ctx.moveTo(left + 12, basketY);
+      ctx.quadraticCurveTo(left, basketY + basketHeight * 0.35, left + 18, basketY + basketHeight);
+      ctx.lineTo(right - 18, basketY + basketHeight);
+      ctx.quadraticCurveTo(right, basketY + basketHeight * 0.35, right - 12, basketY);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#8b5a2b';
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(139,90,43,0.6)';
+      ctx.lineWidth = 2;
+      const weaveCount = 4;
+      for (let i = 1; i < weaveCount; i++) {
+        const y = basketY + (basketHeight / weaveCount) * i;
+        ctx.beginPath();
+        ctx.moveTo(left + 18, y);
+        ctx.lineTo(right - 18, y);
+        ctx.stroke();
+      }
+      for (let i = 1; i < weaveCount; i++) {
+        const x = left + (basketWidth / weaveCount) * i;
+        ctx.beginPath();
+        ctx.moveTo(x, basketY + 6);
+        ctx.lineTo(x - 8, basketY + basketHeight - 6);
+        ctx.stroke();
+      }
+
+      ctx.beginPath();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#8b5a2b';
+      ctx.arc(basketX + basketWidth / 2, basketY, basketWidth / 2.1, Math.PI, 0);
+      ctx.stroke();
+    }
 
     function updateBasket() { if (keys.left) basketX -= speed; if (keys.right) basketX += speed; basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketX)); }
     function addText(x, y, text, color) { texts.push(new FloatingText(x, y, text, color)); }
