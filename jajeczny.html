@@ -322,8 +322,13 @@
       const basketY = canvas.height - basketHeight - 10;
       [...eggs, ...goldenEggs].forEach(obj => {
         if (obj.y > basketY && obj.x > basketX && obj.x < basketX + basketWidth) {
-          if (obj instanceof Egg) { score += 1; addText(obj.x, basketY, '+1', '#fff'); }
-          else if (obj instanceof GoldenEgg) { score += 100; addText(obj.x, basketY, '+100', '#ffd700'); }
+          if (obj instanceof GoldenEgg) {
+            score += 100;
+            addText(obj.x, basketY, '+100', '#ffd700');
+          } else {
+            score += 1;
+            addText(obj.x, basketY, '+1', '#fff');
+          }
           removeObject(obj);
           checkLevelProgress();
         }
