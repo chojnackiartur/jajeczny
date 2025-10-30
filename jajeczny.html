@@ -135,6 +135,7 @@
     const chickenCanvas = document.getElementById('chickensCanvas');
     const cctx = chickenCanvas.getContext('2d');
     const scoreDisplay = document.getElementById('score');
+    const levelDisplay = document.getElementById('level');
     const livesDisplay = document.getElementById('lives');
     const startScreen = document.getElementById('startScreen');
     const gameOverScreen = document.getElementById('gameOverScreen');
@@ -142,11 +143,18 @@
 
     let score = 0, lives = 3, level = 1;
     let basketX, basketWidth, basketHeight, speed;
+    const baseBasketWidth = 100;
+    const poweredBasketWidth = 150;
     let eggs = [], hearts = [], goldenEggs = [], hourglasses = [], bigBaskets = [];
     let texts = [], chickens = [];
     let keys = { left: false, right: false };
     let gameRunning = false;
-    let spawnRate = 0.008;
+    const baseChickenCount = 2;
+    const spawnChanceBase = 0.0012;
+    const spawnChanceGrowth = 0.0003;
+    const goldenEggChance = 0.12;
+    const powerupChance = 0.003;
+    let nextLevelScore = 50;
     let slowTimer = 0, bigTimer = 0;
 
     class Chicken {
@@ -161,7 +169,7 @@
         this.x += 1.2 * this.direction;
         this.y = 40 + Math.sin(this.angle) * 10;
         if (this.x < 50 || this.x > canvas.width - 50) this.direction *= -1;
-        if (Math.random() < 0.003) spawnEggFromChicken(this.x);
+        if (Math.random() < getCurrentSpawnChance()) spawnEggFromChicken(this.x);
       }
       draw() {
         cctx.beginPath();
@@ -189,16 +197,27 @@
       }
     }
 
+    function getCurrentSpawnChance() {
+      return Math.min(0.01, spawnChanceBase + (level - 1) * spawnChanceGrowth);
+    }
+
+    function getChickenCountForLevel() {
+      return baseChickenCount + (level - 1);
+    }
+
     function spawnEggFromChicken(x) {
       const dy = 2 + Math.random();
-      if (Math.random() < 0.05) goldenEggs.push(new GoldenEgg(x, 100, dy));
+      if (Math.random() < goldenEggChance) goldenEggs.push(new GoldenEgg(x, 100, dy));
       else eggs.push(new Egg(x, 100, dy));
+      maybeSpawnPowerup(x);
     }
 
     function setupChickens() {
+      const count = getChickenCountForLevel();
+      const spacing = canvas.width / (count + 1);
       chickens = [];
-      for (let i = 0; i < 5; i++) {
-        chickens.push(new Chicken(100 + i * 180, 40));
+      for (let i = 0; i < count; i++) {
+        chickens.push(new Chicken(spacing * (i + 1), 40));
       }
     }
 
@@ -211,22 +230,84 @@
     class Egg {
       constructor(x, y, dy) { this.x = x; this.y = y; this.dy = dy; }
       draw() { ctx.beginPath(); ctx.ellipse(this.x, this.y, 8, 12, 0, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#ddd'; ctx.stroke(); }
-      update() { this.y += this.dy; }
+      update() { this.y += this.dy * (slowTimer > 0 ? 0.5 : 1); }
     }
 
     class GoldenEgg extends Egg {
       draw() { ctx.beginPath(); ctx.ellipse(this.x, this.y, 10, 14, 0, 0, Math.PI * 2); ctx.fillStyle = 'gold'; ctx.fill(); ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 2; ctx.stroke(); ctx.beginPath(); ctx.moveTo(this.x - 5, this.y - 5); ctx.lineTo(this.x, this.y - 10); ctx.lineTo(this.x + 5, this.y - 5); ctx.strokeStyle = '#fff8dc'; ctx.lineWidth = 1; ctx.stroke(); }
     }
 
+    class Heart {
+      constructor(x, y) { this.x = x; this.y = y; this.dy = 2; }
+      update() { this.y += this.dy; }
+      draw() {
+        ctx.save();
+        ctx.fillStyle = '#ff4d6d';
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.bezierCurveTo(this.x - 12, this.y - 12, this.x - 18, this.y + 8, this.x, this.y + 20);
+        ctx.bezierCurveTo(this.x + 18, this.y + 8, this.x + 12, this.y - 12, this.x, this.y);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    class Hourglass {
+      constructor(x, y) { this.x = x; this.y = y; this.dy = 2.2; }
+      update() { this.y += this.dy; }
+      draw() {
+        ctx.save();
+        ctx.strokeStyle = '#87cefa';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(this.x - 10, this.y - 12);
+        ctx.lineTo(this.x + 10, this.y - 12);
+        ctx.lineTo(this.x - 10, this.y + 12);
+        ctx.lineTo(this.x + 10, this.y + 12);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(this.x - 10, this.y - 12);
+        ctx.lineTo(this.x + 10, this.y + 12);
+        ctx.moveTo(this.x + 10, this.y - 12);
+        ctx.lineTo(this.x - 10, this.y + 12);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    class BigBasketPower {
+      constructor(x, y) { this.x = x; this.y = y; this.dy = 2.4; }
+      update() { this.y += this.dy; }
+      draw() {
+        ctx.save();
+        ctx.fillStyle = '#ffa500';
+        ctx.fillRect(this.x - 14, this.y - 10, 28, 20);
+        ctx.fillStyle = '#fff8dc';
+        ctx.fillRect(this.x - 10, this.y - 6, 20, 12);
+        ctx.restore();
+      }
+    }
+
     class FloatingText { constructor(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.opacity = 1; } update() { this.y -= 1; this.opacity -= 0.02; } draw() { ctx.globalAlpha = this.opacity; ctx.fillStyle = this.color; ctx.font = 'bold 16px Arial'; ctx.fillText(this.text, this.x, this.y); ctx.globalAlpha = 1; } }
 
+    function maybeSpawnPowerup(x) {
+      if (Math.random() > powerupChance) return;
+      const roll = Math.random();
+      if (roll < 0.34) hearts.push(new Heart(x, 100));
+      else if (roll < 0.67) hourglasses.push(new Hourglass(x, 100));
+      else bigBaskets.push(new BigBasketPower(x, 100));
+    }
+
     function resetGame() {
-      score = 0; lives = 3; level = 1;
-      basketX = canvas.width / 2 - 40; basketWidth = 100; basketHeight = 35; speed = 12;
-      eggs = []; goldenEggs = []; texts = [];
+      score = 0; lives = 3; level = 1; nextLevelScore = 50;
+      basketX = canvas.width / 2 - 40; basketWidth = baseBasketWidth; basketHeight = 35; speed = 12;
+      eggs = []; goldenEggs = []; texts = []; hearts = []; hourglasses = []; bigBaskets = [];
+      slowTimer = 0; bigTimer = 0;
       setupChickens();
       scoreDisplay.textContent = 'Punkty: 0';
       livesDisplay.textContent = 'Życia: 3';
+      levelDisplay.textContent = 'Poziom: 1';
       gameRunning = true;
       drawChickens();
       gameLoop();
@@ -244,8 +325,10 @@
           if (obj instanceof Egg) { score += 1; addText(obj.x, basketY, '+1', '#fff'); }
           else if (obj instanceof GoldenEgg) { score += 100; addText(obj.x, basketY, '+100', '#ffd700'); }
           removeObject(obj);
+          checkLevelProgress();
         }
       });
+      checkPowerupCollisions(basketY);
     }
 
     function checkMissedEggs() {
@@ -253,9 +336,67 @@
         const e = eggs[i];
         if (e.y > canvas.height) { eggs.splice(i, 1); lives--; addText(e.x, canvas.height - 20, '-1 życie', '#ff0000'); if (lives <= 0) endGame(); }
       }
+      for (let i = goldenEggs.length - 1; i >= 0; i--) {
+        if (goldenEggs[i].y > canvas.height) { goldenEggs.splice(i, 1); }
+      }
+      [hearts, hourglasses, bigBaskets].forEach(arr => {
+        for (let i = arr.length - 1; i >= 0; i--) {
+          if (arr[i].y > canvas.height) arr.splice(i, 1);
+        }
+      });
     }
 
     function removeObject(obj) { eggs = eggs.filter(e => e !== obj); goldenEggs = goldenEggs.filter(e => e !== obj); }
+
+    function removePowerup(obj) {
+      hearts = hearts.filter(p => p !== obj);
+      hourglasses = hourglasses.filter(p => p !== obj);
+      bigBaskets = bigBaskets.filter(p => p !== obj);
+    }
+
+    function checkPowerupCollisions(basketY) {
+      const powerupHandler = (obj, onCatch) => {
+        if (obj.y > basketY && obj.x > basketX && obj.x < basketX + basketWidth) {
+          onCatch();
+          removePowerup(obj);
+        }
+      };
+
+      hearts.slice().forEach(heart => {
+        powerupHandler(heart, () => {
+          lives = Math.min(5, lives + 1);
+          addText(heart.x, basketY, '+1 życie', '#ff4d6d');
+        });
+      });
+
+      hourglasses.slice().forEach(hourglass => {
+        powerupHandler(hourglass, () => {
+          slowTimer = 600;
+          addText(hourglass.x, basketY, 'Spowolnienie!', '#87cefa');
+        });
+      });
+
+      bigBaskets.slice().forEach(power => {
+        powerupHandler(power, () => {
+          bigTimer = 600;
+          basketWidth = poweredBasketWidth;
+          addText(power.x, basketY, 'Większy koszyk!', '#ffa500');
+        });
+      });
+    }
+
+    function checkLevelProgress() {
+      let leveledUp = false;
+      while (score >= nextLevelScore) {
+        level++;
+        nextLevelScore += 50;
+        leveledUp = true;
+      }
+      if (leveledUp) {
+        levelDisplay.textContent = `Poziom: ${level}`;
+        setupChickens();
+      }
+    }
 
     function endGame() { gameRunning = false; finalScore.textContent = score; gameOverScreen.style.display = 'block'; }
 
@@ -264,6 +405,14 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawBasket();
       [...eggs, ...goldenEggs].forEach(o => { o.update(); o.draw(); });
+      hearts.forEach(h => { h.update(); h.draw(); });
+      hourglasses.forEach(h => { h.update(); h.draw(); });
+      bigBaskets.forEach(b => { b.update(); b.draw(); });
+      if (slowTimer > 0) slowTimer--;
+      if (bigTimer > 0) {
+        bigTimer--;
+        if (bigTimer === 0) basketWidth = baseBasketWidth;
+      }
       checkCollisions(); checkMissedEggs(); updateBasket();
       texts.forEach(t => { t.update(); t.draw(); }); texts = texts.filter(t => t.opacity > 0);
       scoreDisplay.textContent = `Punkty: ${score}`; livesDisplay.textContent = `Życia: ${lives}`;
