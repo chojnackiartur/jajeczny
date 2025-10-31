@@ -265,6 +265,11 @@
       ctx.quadraticCurveTo(left, basketY + basketHeight * 0.4, left + 22, basketY + basketHeight);
       ctx.lineTo(right - 22, basketY + basketHeight);
       ctx.quadraticCurveTo(right, basketY + basketHeight * 0.4, right - 16, basketY);
+      ctx.beginPath();
+      ctx.moveTo(left + 12, basketY);
+      ctx.quadraticCurveTo(left, basketY + basketHeight * 0.35, left + 18, basketY + basketHeight);
+      ctx.lineTo(right - 18, basketY + basketHeight);
+      ctx.quadraticCurveTo(right, basketY + basketHeight * 0.35, right - 12, basketY);
       ctx.closePath();
       ctx.fillStyle = gradient;
       ctx.fill();
@@ -284,6 +289,8 @@
 
       ctx.save();
       ctx.strokeStyle = 'rgba(139, 90, 43, 0.6)';
+
+      ctx.strokeStyle = 'rgba(139,90,43,0.6)';
       ctx.lineWidth = 2;
       const weaveCount = 4;
       for (let i = 1; i < weaveCount; i++) {
@@ -291,6 +298,8 @@
         ctx.beginPath();
         ctx.moveTo(left + 26, y);
         ctx.lineTo(right - 26, y);
+        ctx.moveTo(left + 18, y);
+        ctx.lineTo(right - 18, y);
         ctx.stroke();
       }
       for (let i = 1; i < weaveCount; i++) {
@@ -323,6 +332,16 @@
       ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.4, Math.PI, 0);
       ctx.stroke();
       ctx.restore();
+        ctx.moveTo(x, basketY + 6);
+        ctx.lineTo(x - 8, basketY + basketHeight - 6);
+        ctx.stroke();
+      }
+
+      ctx.beginPath();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#8b5a2b';
+      ctx.arc(basketX + basketWidth / 2, basketY, basketWidth / 2.1, Math.PI, 0);
+      ctx.stroke();
     }
 
     function updateBasket() { if (keys.left) basketX -= speed; if (keys.right) basketX += speed; basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketX)); }
