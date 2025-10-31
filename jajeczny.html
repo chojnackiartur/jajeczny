@@ -135,6 +135,7 @@
     const chickenCanvas = document.getElementById('chickensCanvas');
     const cctx = chickenCanvas.getContext('2d');
     const scoreDisplay = document.getElementById('score');
+    const levelDisplay = document.getElementById('level');
     const livesDisplay = document.getElementById('lives');
     const startScreen = document.getElementById('startScreen');
     const gameOverScreen = document.getElementById('gameOverScreen');
@@ -146,7 +147,13 @@
     let texts = [], chickens = [];
     let keys = { left: false, right: false };
     let gameRunning = false;
-    let spawnRate = 0.008;
+    let gameLoopId = null;
+    let chickenLoopId = null;
+    const baseChickenCount = 2;
+    const spawnChanceBase = 0.0045;
+    const spawnChanceGrowth = 0.0012;
+    const goldenEggChance = 0.12;
+    let nextLevelScore = 250;
     let slowTimer = 0, bigTimer = 0;
 
     class Chicken {
@@ -161,7 +168,7 @@
         this.x += 1.2 * this.direction;
         this.y = 40 + Math.sin(this.angle) * 10;
         if (this.x < 50 || this.x > canvas.width - 50) this.direction *= -1;
-        if (Math.random() < 0.003) spawnEggFromChicken(this.x);
+        if (Math.random() < getCurrentSpawnChance()) spawnEggFromChicken(this.x);
       }
       draw() {
         cctx.beginPath();
@@ -189,23 +196,45 @@
       }
     }
 
+    function getCurrentSpawnChance() {
+      return Math.min(0.01, spawnChanceBase + (level - 1) * spawnChanceGrowth);
+    }
+
+    function getChickenCountForLevel() {
+      return baseChickenCount + (level - 1);
+    }
+
     function spawnEggFromChicken(x) {
-      const dy = 2 + Math.random();
-      if (Math.random() < 0.05) goldenEggs.push(new GoldenEgg(x, 100, dy));
+      const dy = 4 + Math.random() * 1.5 + level * 0.3;
+      if (Math.random() < goldenEggChance) goldenEggs.push(new GoldenEgg(x, 100, dy));
       else eggs.push(new Egg(x, 100, dy));
     }
 
     function setupChickens() {
+      const count = getChickenCountForLevel();
+      const spacing = canvas.width / (count + 1);
       chickens = [];
-      for (let i = 0; i < 5; i++) {
-        chickens.push(new Chicken(100 + i * 180, 40));
+      for (let i = 0; i < count; i++) {
+        chickens.push(new Chicken(spacing * (i + 1), 40));
       }
     }
 
-    function drawChickens() {
+    function runChickens() {
       cctx.clearRect(0, 0, chickenCanvas.width, chickenCanvas.height);
       chickens.forEach(ch => { ch.update(); ch.draw(); });
-      requestAnimationFrame(drawChickens);
+      chickenLoopId = requestAnimationFrame(runChickens);
+    }
+
+    function startChickenLoop() {
+      stopChickenLoop();
+      runChickens();
+    }
+
+    function stopChickenLoop() {
+      if (chickenLoopId !== null) {
+        cancelAnimationFrame(chickenLoopId);
+        chickenLoopId = null;
+      }
     }
 
     class Egg {
@@ -221,18 +250,96 @@
     class FloatingText { constructor(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.opacity = 1; } update() { this.y -= 1; this.opacity -= 0.02; } draw() { ctx.globalAlpha = this.opacity; ctx.fillStyle = this.color; ctx.font = 'bold 16px Arial'; ctx.fillText(this.text, this.x, this.y); ctx.globalAlpha = 1; } }
 
     function resetGame() {
-      score = 0; lives = 3; level = 1;
-      basketX = canvas.width / 2 - 40; basketWidth = 100; basketHeight = 35; speed = 12;
+      stopGameLoop();
+      stopChickenLoop();
+      score = 0; lives = 3; level = 1; nextLevelScore = 250;
+      basketX = canvas.width / 2 - 45; basketWidth = 120; basketHeight = 40; speed = 8;
       eggs = []; goldenEggs = []; texts = [];
       setupChickens();
       scoreDisplay.textContent = 'Punkty: 0';
       livesDisplay.textContent = 'Życia: 3';
+      levelDisplay.textContent = 'Poziom: 1';
       gameRunning = true;
-      drawChickens();
+      startChickenLoop();
       gameLoop();
     }
 
-    function drawBasket() { ctx.fillStyle = '#d2b48c'; ctx.fillRect(basketX, canvas.height - basketHeight - 10, basketWidth, basketHeight); ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 3; ctx.strokeRect(basketX, canvas.height - basketHeight - 10, basketWidth, basketHeight); }
+    function drawBasket() {
+      const basketY = canvas.height - basketHeight - 10;
+      const left = basketX;
+      const right = basketX + basketWidth;
+      const gradient = ctx.createLinearGradient(0, basketY, 0, basketY + basketHeight);
+      gradient.addColorStop(0, '#f4d7a6');
+      gradient.addColorStop(1, '#c79253');
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 4;
+      ctx.beginPath();
+      ctx.moveTo(left + 16, basketY);
+      ctx.quadraticCurveTo(left, basketY + basketHeight * 0.4, left + 22, basketY + basketHeight);
+      ctx.lineTo(right - 22, basketY + basketHeight);
+      ctx.quadraticCurveTo(right, basketY + basketHeight * 0.4, right - 16, basketY);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#8b5a2b';
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(left + 24, basketY + 6);
+      ctx.quadraticCurveTo((left + right) / 2, basketY - 2, right - 24, basketY + 6);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(139, 90, 43, 0.6)';
+      ctx.lineWidth = 2;
+      const weaveCount = 4;
+      for (let i = 1; i < weaveCount; i++) {
+        const y = basketY + (basketHeight / weaveCount) * i;
+        ctx.beginPath();
+        ctx.moveTo(left + 26, y);
+        ctx.lineTo(right - 26, y);
+        ctx.stroke();
+      }
+      for (let i = 1; i < weaveCount; i++) {
+        const x = left + (basketWidth / weaveCount) * i;
+        ctx.beginPath();
+        ctx.moveTo(x, basketY + 10);
+        ctx.lineTo(x - 10, basketY + basketHeight - 6);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.lineWidth = 6;
+      const handleGradient = ctx.createLinearGradient(basketX, basketY, basketX + basketWidth, basketY);
+      handleGradient.addColorStop(0, '#a06b32');
+      handleGradient.addColorStop(1, '#c98b4f');
+      ctx.strokeStyle = handleGradient;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 2;
+      ctx.beginPath();
+      ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.2, Math.PI, 0);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.4, Math.PI, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     function updateBasket() { if (keys.left) basketX -= speed; if (keys.right) basketX += speed; basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketX)); }
     function addText(x, y, text, color) { texts.push(new FloatingText(x, y, text, color)); }
@@ -241,9 +348,10 @@
       const basketY = canvas.height - basketHeight - 10;
       [...eggs, ...goldenEggs].forEach(obj => {
         if (obj.y > basketY && obj.x > basketX && obj.x < basketX + basketWidth) {
-          if (obj instanceof Egg) { score += 1; addText(obj.x, basketY, '+1', '#fff'); }
+          if (obj instanceof Egg) { score += 10; addText(obj.x, basketY, '+10', '#fff'); }
           else if (obj instanceof GoldenEgg) { score += 100; addText(obj.x, basketY, '+100', '#ffd700'); }
           removeObject(obj);
+          checkLevelProgress();
         }
       });
     }
@@ -253,21 +361,53 @@
         const e = eggs[i];
         if (e.y > canvas.height) { eggs.splice(i, 1); lives--; addText(e.x, canvas.height - 20, '-1 życie', '#ff0000'); if (lives <= 0) endGame(); }
       }
+      for (let i = goldenEggs.length - 1; i >= 0; i--) {
+        if (goldenEggs[i].y > canvas.height) { goldenEggs.splice(i, 1); }
+      }
     }
 
     function removeObject(obj) { eggs = eggs.filter(e => e !== obj); goldenEggs = goldenEggs.filter(e => e !== obj); }
 
-    function endGame() { gameRunning = false; finalScore.textContent = score; gameOverScreen.style.display = 'block'; }
+    function checkLevelProgress() {
+      let leveledUp = false;
+      while (score >= nextLevelScore) {
+        level++;
+        nextLevelScore += 250;
+        leveledUp = true;
+      }
+      if (leveledUp) {
+        levelDisplay.textContent = `Poziom: ${level}`;
+        setupChickens();
+      }
+    }
+
+    function endGame() {
+      gameRunning = false;
+      finalScore.textContent = score;
+      gameOverScreen.style.display = 'block';
+      stopGameLoop();
+      stopChickenLoop();
+    }
 
     function gameLoop() {
-      if (!gameRunning) return;
+      if (!gameRunning) {
+        stopGameLoop();
+        return;
+      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawBasket();
       [...eggs, ...goldenEggs].forEach(o => { o.update(); o.draw(); });
       checkCollisions(); checkMissedEggs(); updateBasket();
       texts.forEach(t => { t.update(); t.draw(); }); texts = texts.filter(t => t.opacity > 0);
       scoreDisplay.textContent = `Punkty: ${score}`; livesDisplay.textContent = `Życia: ${lives}`;
-      requestAnimationFrame(gameLoop);
+      gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    function stopGameLoop() {
+      if (gameLoopId !== null) {
+        cancelAnimationFrame(gameLoopId);
+        gameLoopId = null;
+      }
     }
 
     document.getElementById('startBtn').onclick = () => { startScreen.style.display = 'none'; resetGame(); };
