@@ -147,6 +147,8 @@
     let texts = [], chickens = [];
     let keys = { left: false, right: false };
     let gameRunning = false;
+    let gameLoopId = null;
+    let chickenLoopId = null;
     const baseChickenCount = 2;
     const spawnChanceBase = 0.0012;
     const spawnChanceGrowth = 0.0003;
@@ -217,10 +219,22 @@
       }
     }
 
-    function drawChickens() {
+    function runChickens() {
       cctx.clearRect(0, 0, chickenCanvas.width, chickenCanvas.height);
       chickens.forEach(ch => { ch.update(); ch.draw(); });
-      requestAnimationFrame(drawChickens);
+      chickenLoopId = requestAnimationFrame(runChickens);
+    }
+
+    function startChickenLoop() {
+      stopChickenLoop();
+      runChickens();
+    }
+
+    function stopChickenLoop() {
+      if (chickenLoopId !== null) {
+        cancelAnimationFrame(chickenLoopId);
+        chickenLoopId = null;
+      }
     }
 
     class Egg {
@@ -236,6 +250,8 @@
     class FloatingText { constructor(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.opacity = 1; } update() { this.y -= 1; this.opacity -= 0.02; } draw() { ctx.globalAlpha = this.opacity; ctx.fillStyle = this.color; ctx.font = 'bold 16px Arial'; ctx.fillText(this.text, this.x, this.y); ctx.globalAlpha = 1; } }
 
     function resetGame() {
+      stopGameLoop();
+      stopChickenLoop();
       score = 0; lives = 3; level = 1; nextLevelScore = 50;
       basketX = canvas.width / 2 - 45; basketWidth = 120; basketHeight = 40; speed = 6;
       eggs = []; goldenEggs = []; texts = [];
@@ -244,7 +260,7 @@
       livesDisplay.textContent = 'Życia: 3';
       levelDisplay.textContent = 'Poziom: 1';
       gameRunning = true;
-      drawChickens();
+      startChickenLoop();
       gameLoop();
     }
 
@@ -265,11 +281,6 @@
       ctx.quadraticCurveTo(left, basketY + basketHeight * 0.4, left + 22, basketY + basketHeight);
       ctx.lineTo(right - 22, basketY + basketHeight);
       ctx.quadraticCurveTo(right, basketY + basketHeight * 0.4, right - 16, basketY);
-      ctx.beginPath();
-      ctx.moveTo(left + 12, basketY);
-      ctx.quadraticCurveTo(left, basketY + basketHeight * 0.35, left + 18, basketY + basketHeight);
-      ctx.lineTo(right - 18, basketY + basketHeight);
-      ctx.quadraticCurveTo(right, basketY + basketHeight * 0.35, right - 12, basketY);
       ctx.closePath();
       ctx.fillStyle = gradient;
       ctx.fill();
@@ -289,8 +300,6 @@
 
       ctx.save();
       ctx.strokeStyle = 'rgba(139, 90, 43, 0.6)';
-
-      ctx.strokeStyle = 'rgba(139,90,43,0.6)';
       ctx.lineWidth = 2;
       const weaveCount = 4;
       for (let i = 1; i < weaveCount; i++) {
@@ -298,8 +307,6 @@
         ctx.beginPath();
         ctx.moveTo(left + 26, y);
         ctx.lineTo(right - 26, y);
-        ctx.moveTo(left + 18, y);
-        ctx.lineTo(right - 18, y);
         ctx.stroke();
       }
       for (let i = 1; i < weaveCount; i++) {
@@ -332,16 +339,6 @@
       ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.4, Math.PI, 0);
       ctx.stroke();
       ctx.restore();
-        ctx.moveTo(x, basketY + 6);
-        ctx.lineTo(x - 8, basketY + basketHeight - 6);
-        ctx.stroke();
-      }
-
-      ctx.beginPath();
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = '#8b5a2b';
-      ctx.arc(basketX + basketWidth / 2, basketY, basketWidth / 2.1, Math.PI, 0);
-      ctx.stroke();
     }
 
     function updateBasket() { if (keys.left) basketX -= speed; if (keys.right) basketX += speed; basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketX)); }
@@ -384,17 +381,33 @@
       }
     }
 
-    function endGame() { gameRunning = false; finalScore.textContent = score; gameOverScreen.style.display = 'block'; }
+    function endGame() {
+      gameRunning = false;
+      finalScore.textContent = score;
+      gameOverScreen.style.display = 'block';
+      stopGameLoop();
+      stopChickenLoop();
+    }
 
     function gameLoop() {
-      if (!gameRunning) return;
+      if (!gameRunning) {
+        stopGameLoop();
+        return;
+      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawBasket();
       [...eggs, ...goldenEggs].forEach(o => { o.update(); o.draw(); });
       checkCollisions(); checkMissedEggs(); updateBasket();
       texts.forEach(t => { t.update(); t.draw(); }); texts = texts.filter(t => t.opacity > 0);
       scoreDisplay.textContent = `Punkty: ${score}`; livesDisplay.textContent = `Życia: ${lives}`;
-      requestAnimationFrame(gameLoop);
+      gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    function stopGameLoop() {
+      if (gameLoopId !== null) {
+        cancelAnimationFrame(gameLoopId);
+        gameLoopId = null;
+      }
     }
 
     document.getElementById('startBtn').onclick = () => { startScreen.style.display = 'none'; resetGame(); };
