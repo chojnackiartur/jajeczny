@@ -151,7 +151,7 @@
     let chickenLoopId = null;
     const baseChickenCount = 2;
     const spawnChanceBase = 0.0045;
-    const spawnChanceGrowth = 0.0012;
+    const spawnChanceGrowth = 0.0004;
     const goldenEggChance = 0.12;
     let nextLevelScore = 250;
     let slowTimer = 0, bigTimer = 0;
@@ -348,8 +348,8 @@
       const basketY = canvas.height - basketHeight - 10;
       [...eggs, ...goldenEggs].forEach(obj => {
         if (obj.y > basketY && obj.x > basketX && obj.x < basketX + basketWidth) {
-          if (obj instanceof Egg) { score += 10; addText(obj.x, basketY, '+10', '#fff'); }
-          else if (obj instanceof GoldenEgg) { score += 100; addText(obj.x, basketY, '+100', '#ffd700'); }
+          if (obj instanceof GoldenEgg) { score += 100; addText(obj.x, basketY, '+100', '#ffd700'); }
+          else if (obj instanceof Egg) { score += 10; addText(obj.x, basketY, '+10', '#fff'); }
           removeObject(obj);
           checkLevelProgress();
         }
