@@ -237,7 +237,7 @@
 
     function resetGame() {
       score = 0; lives = 3; level = 1; nextLevelScore = 50;
-      basketX = canvas.width / 2 - 40; basketWidth = 110; basketHeight = 38; speed = 7;
+      basketX = canvas.width / 2 - 45; basketWidth = 120; basketHeight = 40; speed = 6;
       eggs = []; goldenEggs = []; texts = [];
       setupChickens();
       scoreDisplay.textContent = 'Punkty: 0';
@@ -256,6 +256,15 @@
       gradient.addColorStop(0, '#f4d7a6');
       gradient.addColorStop(1, '#c79253');
 
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 4;
+      ctx.beginPath();
+      ctx.moveTo(left + 16, basketY);
+      ctx.quadraticCurveTo(left, basketY + basketHeight * 0.4, left + 22, basketY + basketHeight);
+      ctx.lineTo(right - 22, basketY + basketHeight);
+      ctx.quadraticCurveTo(right, basketY + basketHeight * 0.4, right - 16, basketY);
       ctx.beginPath();
       ctx.moveTo(left + 12, basketY);
       ctx.quadraticCurveTo(left, basketY + basketHeight * 0.35, left + 18, basketY + basketHeight);
@@ -267,6 +276,19 @@
       ctx.lineWidth = 3;
       ctx.strokeStyle = '#8b5a2b';
       ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(left + 24, basketY + 6);
+      ctx.quadraticCurveTo((left + right) / 2, basketY - 2, right - 24, basketY + 6);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(139, 90, 43, 0.6)';
 
       ctx.strokeStyle = 'rgba(139,90,43,0.6)';
       ctx.lineWidth = 2;
@@ -274,6 +296,8 @@
       for (let i = 1; i < weaveCount; i++) {
         const y = basketY + (basketHeight / weaveCount) * i;
         ctx.beginPath();
+        ctx.moveTo(left + 26, y);
+        ctx.lineTo(right - 26, y);
         ctx.moveTo(left + 18, y);
         ctx.lineTo(right - 18, y);
         ctx.stroke();
@@ -281,6 +305,33 @@
       for (let i = 1; i < weaveCount; i++) {
         const x = left + (basketWidth / weaveCount) * i;
         ctx.beginPath();
+        ctx.moveTo(x, basketY + 10);
+        ctx.lineTo(x - 10, basketY + basketHeight - 6);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.lineWidth = 6;
+      const handleGradient = ctx.createLinearGradient(basketX, basketY, basketX + basketWidth, basketY);
+      handleGradient.addColorStop(0, '#a06b32');
+      handleGradient.addColorStop(1, '#c98b4f');
+      ctx.strokeStyle = handleGradient;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 2;
+      ctx.beginPath();
+      ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.2, Math.PI, 0);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.4, Math.PI, 0);
+      ctx.stroke();
+      ctx.restore();
         ctx.moveTo(x, basketY + 6);
         ctx.lineTo(x - 8, basketY + basketHeight - 6);
         ctx.stroke();
