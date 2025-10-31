@@ -135,6 +135,7 @@
     const chickenCanvas = document.getElementById('chickensCanvas');
     const cctx = chickenCanvas.getContext('2d');
     const scoreDisplay = document.getElementById('score');
+    const levelDisplay = document.getElementById('level');
     const livesDisplay = document.getElementById('lives');
     const startScreen = document.getElementById('startScreen');
     const gameOverScreen = document.getElementById('gameOverScreen');
@@ -146,7 +147,11 @@
     let texts = [], chickens = [];
     let keys = { left: false, right: false };
     let gameRunning = false;
-    let spawnRate = 0.008;
+    const baseChickenCount = 2;
+    const spawnChanceBase = 0.0012;
+    const spawnChanceGrowth = 0.0003;
+    const goldenEggChance = 0.12;
+    let nextLevelScore = 50;
     let slowTimer = 0, bigTimer = 0;
 
     class Chicken {
@@ -161,7 +166,7 @@
         this.x += 1.2 * this.direction;
         this.y = 40 + Math.sin(this.angle) * 10;
         if (this.x < 50 || this.x > canvas.width - 50) this.direction *= -1;
-        if (Math.random() < 0.003) spawnEggFromChicken(this.x);
+        if (Math.random() < getCurrentSpawnChance()) spawnEggFromChicken(this.x);
       }
       draw() {
         cctx.beginPath();
@@ -189,16 +194,26 @@
       }
     }
 
+    function getCurrentSpawnChance() {
+      return Math.min(0.01, spawnChanceBase + (level - 1) * spawnChanceGrowth);
+    }
+
+    function getChickenCountForLevel() {
+      return baseChickenCount + (level - 1);
+    }
+
     function spawnEggFromChicken(x) {
       const dy = 2 + Math.random();
-      if (Math.random() < 0.05) goldenEggs.push(new GoldenEgg(x, 100, dy));
+      if (Math.random() < goldenEggChance) goldenEggs.push(new GoldenEgg(x, 100, dy));
       else eggs.push(new Egg(x, 100, dy));
     }
 
     function setupChickens() {
+      const count = getChickenCountForLevel();
+      const spacing = canvas.width / (count + 1);
       chickens = [];
-      for (let i = 0; i < 5; i++) {
-        chickens.push(new Chicken(100 + i * 180, 40));
+      for (let i = 0; i < count; i++) {
+        chickens.push(new Chicken(spacing * (i + 1), 40));
       }
     }
 
@@ -221,18 +236,94 @@
     class FloatingText { constructor(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.opacity = 1; } update() { this.y -= 1; this.opacity -= 0.02; } draw() { ctx.globalAlpha = this.opacity; ctx.fillStyle = this.color; ctx.font = 'bold 16px Arial'; ctx.fillText(this.text, this.x, this.y); ctx.globalAlpha = 1; } }
 
     function resetGame() {
-      score = 0; lives = 3; level = 1;
-      basketX = canvas.width / 2 - 40; basketWidth = 100; basketHeight = 35; speed = 12;
+      score = 0; lives = 3; level = 1; nextLevelScore = 50;
+      basketX = canvas.width / 2 - 45; basketWidth = 120; basketHeight = 40; speed = 6;
       eggs = []; goldenEggs = []; texts = [];
       setupChickens();
       scoreDisplay.textContent = 'Punkty: 0';
       livesDisplay.textContent = 'Życia: 3';
+      levelDisplay.textContent = 'Poziom: 1';
       gameRunning = true;
       drawChickens();
       gameLoop();
     }
 
-    function drawBasket() { ctx.fillStyle = '#d2b48c'; ctx.fillRect(basketX, canvas.height - basketHeight - 10, basketWidth, basketHeight); ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 3; ctx.strokeRect(basketX, canvas.height - basketHeight - 10, basketWidth, basketHeight); }
+    function drawBasket() {
+      const basketY = canvas.height - basketHeight - 10;
+      const left = basketX;
+      const right = basketX + basketWidth;
+      const gradient = ctx.createLinearGradient(0, basketY, 0, basketY + basketHeight);
+      gradient.addColorStop(0, '#f4d7a6');
+      gradient.addColorStop(1, '#c79253');
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 4;
+      ctx.beginPath();
+      ctx.moveTo(left + 16, basketY);
+      ctx.quadraticCurveTo(left, basketY + basketHeight * 0.4, left + 22, basketY + basketHeight);
+      ctx.lineTo(right - 22, basketY + basketHeight);
+      ctx.quadraticCurveTo(right, basketY + basketHeight * 0.4, right - 16, basketY);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#8b5a2b';
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(left + 24, basketY + 6);
+      ctx.quadraticCurveTo((left + right) / 2, basketY - 2, right - 24, basketY + 6);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(139, 90, 43, 0.6)';
+      ctx.lineWidth = 2;
+      const weaveCount = 4;
+      for (let i = 1; i < weaveCount; i++) {
+        const y = basketY + (basketHeight / weaveCount) * i;
+        ctx.beginPath();
+        ctx.moveTo(left + 26, y);
+        ctx.lineTo(right - 26, y);
+        ctx.stroke();
+      }
+      for (let i = 1; i < weaveCount; i++) {
+        const x = left + (basketWidth / weaveCount) * i;
+        ctx.beginPath();
+        ctx.moveTo(x, basketY + 10);
+        ctx.lineTo(x - 10, basketY + basketHeight - 6);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.lineWidth = 6;
+      const handleGradient = ctx.createLinearGradient(basketX, basketY, basketX + basketWidth, basketY);
+      handleGradient.addColorStop(0, '#a06b32');
+      handleGradient.addColorStop(1, '#c98b4f');
+      ctx.strokeStyle = handleGradient;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 2;
+      ctx.beginPath();
+      ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.2, Math.PI, 0);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.4, Math.PI, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     function updateBasket() { if (keys.left) basketX -= speed; if (keys.right) basketX += speed; basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketX)); }
     function addText(x, y, text, color) { texts.push(new FloatingText(x, y, text, color)); }
@@ -244,6 +335,7 @@
           if (obj instanceof Egg) { score += 1; addText(obj.x, basketY, '+1', '#fff'); }
           else if (obj instanceof GoldenEgg) { score += 100; addText(obj.x, basketY, '+100', '#ffd700'); }
           removeObject(obj);
+          checkLevelProgress();
         }
       });
     }
@@ -253,9 +345,25 @@
         const e = eggs[i];
         if (e.y > canvas.height) { eggs.splice(i, 1); lives--; addText(e.x, canvas.height - 20, '-1 życie', '#ff0000'); if (lives <= 0) endGame(); }
       }
+      for (let i = goldenEggs.length - 1; i >= 0; i--) {
+        if (goldenEggs[i].y > canvas.height) { goldenEggs.splice(i, 1); }
+      }
     }
 
     function removeObject(obj) { eggs = eggs.filter(e => e !== obj); goldenEggs = goldenEggs.filter(e => e !== obj); }
+
+    function checkLevelProgress() {
+      let leveledUp = false;
+      while (score >= nextLevelScore) {
+        level++;
+        nextLevelScore += 50;
+        leveledUp = true;
+      }
+      if (leveledUp) {
+        levelDisplay.textContent = `Poziom: ${level}`;
+        setupChickens();
+      }
+    }
 
     function endGame() { gameRunning = false; finalScore.textContent = score; gameOverScreen.style.display = 'block'; }
 
