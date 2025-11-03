@@ -398,7 +398,8 @@
         }
         const stridePulse = Math.sin(this.runPhase + Math.PI / 2);
         const leanTarget = moving ? this.facing * (0.16 + stridePulse * 0.04) : 0;
-        const pressTarget = moving ? this.facing * (8 + stridePulse * 2) : 0;
+        const strideReach = Math.abs(Math.sin(this.runPhase)) * 6;
+        const pressTarget = moving ? this.facing * (10 + stridePulse * 1.5 + strideReach) : 0;
         const reachTarget = moving ? 14 + Math.abs(Math.sin(this.runPhase)) * 8 : 0;
         const bodyLeanTarget = moving ? this.facing * 0.08 : 0;
         this.basketLean += (leanTarget - this.basketLean) * 0.2;
@@ -406,7 +407,7 @@
         this.pushReach += (reachTarget - this.pushReach) * 0.22;
         this.bodyLean += (bodyLeanTarget - this.bodyLean) * 0.14;
         this.bodyLean = Math.max(-0.22, Math.min(0.22, this.bodyLean));
-        this.basketPress = Math.max(-16, Math.min(16, this.basketPress));
+        this.basketPress = Math.max(-24, Math.min(24, this.basketPress));
         this.basketLean = Math.max(-0.28, Math.min(0.28, this.basketLean));
         this.pushReach = Math.max(0, Math.min(26, this.pushReach));
         if (!moving) {
@@ -517,15 +518,18 @@
         ctx.save();
         ctx.fillStyle = '#f6d2b3';
         const hold = this.holdRelative;
-        const holdX = pivotX + hold.x * cos - hold.y * sin;
-        const holdY = pivotY + hold.x * sin + hold.y * cos;
+        const normalX = Math.sin(lean);
+        const normalY = -Math.cos(lean);
+        const rimLift = 5.5;
+        const holdX = pivotX + hold.x * cos - hold.y * sin + normalX * rimLift;
+        const holdY = pivotY + hold.x * sin + hold.y * cos + normalY * rimLift;
         ctx.beginPath();
         ctx.ellipse(holdX, holdY - 3, 5.5, 3.2, lean, 0, Math.PI * 2);
         ctx.fill();
         if (this.pushRelative) {
           const push = this.pushRelative;
-          const pushX = pivotX + push.x * cos - push.y * sin;
-          const pushY = pivotY + push.x * sin + push.y * cos;
+          const pushX = pivotX + push.x * cos - push.y * sin + normalX * (rimLift - 0.8);
+          const pushY = pivotY + push.x * sin + push.y * cos + normalY * (rimLift - 0.8);
           ctx.globalAlpha = this.moving ? 1 : 0.75;
           ctx.beginPath();
           ctx.ellipse(pushX, pushY - 2, 6.5, 3.6, lean, 0, Math.PI * 2);
