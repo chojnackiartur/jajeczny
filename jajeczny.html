@@ -22,9 +22,10 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      overflow: hidden;
     }
     #gameCanvas {
-      background: url('https://serwer2007468.home.pl/jajeczny/4381319.jpg') center/cover;
+      background: transparent;
       border: 3px solid #333;
       border-radius: 1rem;
       box-shadow: inset 0 -3vw 3vw rgba(0, 0, 0, 0.3);
@@ -33,6 +34,21 @@
       max-width: 1000px;
       height: auto;
       display: block;
+      position: relative;
+      z-index: 2;
+    }
+    #backgroundLayer {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 140%;
+      height: 140%;
+      background: url('https://serwer2007468.home.pl/jajeczny/4381319.jpg') center/cover;
+      filter: saturate(0.95) brightness(1.05);
+      transform: translate(-50%, -50%);
+      transition: transform 0.18s ease-out;
+      pointer-events: none;
+      z-index: 1;
     }
     #chickensCanvas {
       position: absolute;
@@ -93,7 +109,7 @@
       text-align: center;
       z-index: 20;
     }
-    button {
+    button { 
       background: #4CAF50;
       color: white;
       border: none;
@@ -104,6 +120,28 @@
       margin-top: 15px;
     }
     button:hover { background: #45a049; }
+    #levelUpBanner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.92);
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff7d6;
+      padding: 24px 48px;
+      border-radius: 14px;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-shadow: 0 6px 12px rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 30;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+    #levelUpBanner.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
   </style>
 </head>
 <body>
@@ -113,8 +151,10 @@
     <div id="lives">Życia: 3</div>
   </div>
   <div id="gameContainer">
+    <div id="backgroundLayer"></div>
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <canvas id="chickensCanvas" width="960" height="100"></canvas>
+    <div id="levelUpBanner">Poziom 1</div>
     <div id="controls">
       <div class="ctrl-btn" id="leftBtn">◄</div>
       <div class="ctrl-btn" id="rightBtn">►</div>
@@ -141,6 +181,8 @@
     const startScreen = document.getElementById('startScreen');
     const gameOverScreen = document.getElementById('gameOverScreen');
     const finalScore = document.getElementById('finalScore');
+    const backgroundLayer = document.getElementById('backgroundLayer');
+    const levelUpBanner = document.getElementById('levelUpBanner');
 
     let score = 0, lives = 3, level = 1;
     let basketX, basketWidth, basketHeight, speed;
@@ -154,8 +196,17 @@
     const spawnChanceBase = 0.0045;
     const spawnChanceGrowth = 0.0004;
     const goldenEggChance = 0.12;
+    const heartChance = 0.025;
+    const hourglassChance = 0.018;
+    const bigBasketChance = 0.018;
+    const baseBasketWidth = 108;
+    const poweredBasketWidth = 168;
     let nextLevelScore = 250;
     let slowTimer = 0, bigTimer = 0;
+    let eggSpeedMultiplier = 1;
+    let runner = null;
+    let backgroundShiftX = 0, backgroundShiftY = 0;
+    let levelBannerTimeout = null;
 
     class Chicken {
       constructor(x, y) {
@@ -209,6 +260,16 @@
       const dy = 4 + Math.random() * 1.5 + level * 0.3;
       if (Math.random() < goldenEggChance) goldenEggs.push(new GoldenEgg(x, 100, dy));
       else eggs.push(new Egg(x, 100, dy));
+      maybeSpawnPowerup(x);
+    }
+
+    function maybeSpawnPowerup(x) {
+      const roll = Math.random();
+      const baseY = 100;
+      const dy = 3 + Math.random() * 1.2 + level * 0.2;
+      if (roll < heartChance) hearts.push(new Heart(x, baseY, dy));
+      else if (roll < heartChance + hourglassChance) hourglasses.push(new Hourglass(x, baseY, dy));
+      else if (roll < heartChance + hourglassChance + bigBasketChance) bigBaskets.push(new BigBasket(x, baseY, dy));
     }
 
     function setupChickens() {
@@ -241,11 +302,241 @@
     class Egg {
       constructor(x, y, dy) { this.x = x; this.y = y; this.dy = dy; }
       draw() { ctx.beginPath(); ctx.ellipse(this.x, this.y, 8, 12, 0, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#ddd'; ctx.stroke(); }
-      update() { this.y += this.dy; }
+      update() { this.y += this.dy * eggSpeedMultiplier; }
     }
 
     class GoldenEgg extends Egg {
       draw() { ctx.beginPath(); ctx.ellipse(this.x, this.y, 10, 14, 0, 0, Math.PI * 2); ctx.fillStyle = 'gold'; ctx.fill(); ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 2; ctx.stroke(); ctx.beginPath(); ctx.moveTo(this.x - 5, this.y - 5); ctx.lineTo(this.x, this.y - 10); ctx.lineTo(this.x + 5, this.y - 5); ctx.strokeStyle = '#fff8dc'; ctx.lineWidth = 1; ctx.stroke(); }
+    }
+
+    class PowerUp {
+      constructor(x, y, dy) { this.x = x; this.y = y; this.dy = dy; }
+      update() { this.y += this.dy * eggSpeedMultiplier; }
+    }
+
+    class Heart extends PowerUp {
+      draw() {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.bezierCurveTo(this.x - 12, this.y - 12, this.x - 14, this.y + 8, this.x, this.y + 14);
+        ctx.bezierCurveTo(this.x + 14, this.y + 8, this.x + 12, this.y - 12, this.x, this.y);
+        ctx.fillStyle = '#ff4b6b';
+        ctx.fill();
+        ctx.strokeStyle = '#ff9aad';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    class Hourglass extends PowerUp {
+      draw() {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(this.x - 10, this.y - 14);
+        ctx.lineTo(this.x + 10, this.y - 14);
+        ctx.lineTo(this.x + 6, this.y - 2);
+        ctx.lineTo(this.x + 10, this.y + 14);
+        ctx.lineTo(this.x - 10, this.y + 14);
+        ctx.lineTo(this.x - 6, this.y - 2);
+        ctx.closePath();
+        ctx.fillStyle = '#66d9ff';
+        ctx.fill();
+        ctx.strokeStyle = '#0a5273';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(this.x - 6, this.y - 2);
+        ctx.lineTo(this.x + 6, this.y - 2);
+        ctx.strokeStyle = '#0a5273';
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    class BigBasket extends PowerUp {
+      draw() {
+        ctx.save();
+        ctx.fillStyle = '#ffdd55';
+        ctx.strokeStyle = '#aa7a00';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.rect(this.x - 12, this.y - 8, 24, 16);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - 10, 12, Math.PI, 0);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    class Runner {
+      constructor() {
+        this.facing = 1;
+        this.runPhase = 0;
+        this.moving = false;
+        this.basketLean = 0;
+        this.basketPress = 0;
+        this.pushReach = 0;
+        this.bodyLean = 0;
+        this.holdRelative = null;
+        this.pushRelative = null;
+        this.basketPivot = null;
+      }
+      update(moveLeft, moveRight) {
+        const moving = moveLeft !== moveRight && (moveLeft || moveRight);
+        if (moving) {
+          this.moving = true;
+          this.facing = moveRight ? 1 : -1;
+          this.runPhase = (this.runPhase + 0.24) % (Math.PI * 2);
+        } else {
+          this.moving = false;
+          this.runPhase *= 0.82;
+          if (Math.abs(this.runPhase) < 0.01) this.runPhase = 0;
+        }
+        const stridePulse = Math.sin(this.runPhase + Math.PI / 2);
+        const leanTarget = moving ? this.facing * (0.16 + stridePulse * 0.04) : 0;
+        const strideReach = Math.abs(Math.sin(this.runPhase)) * 6;
+        const pressTarget = moving ? this.facing * (10 + stridePulse * 1.5 + strideReach) : 0;
+        const reachTarget = moving ? 14 + Math.abs(Math.sin(this.runPhase)) * 8 : 0;
+        const bodyLeanTarget = moving ? this.facing * 0.08 : 0;
+        this.basketLean += (leanTarget - this.basketLean) * 0.2;
+        this.basketPress += (pressTarget - this.basketPress) * 0.18;
+        this.pushReach += (reachTarget - this.pushReach) * 0.22;
+        this.bodyLean += (bodyLeanTarget - this.bodyLean) * 0.14;
+        this.bodyLean = Math.max(-0.22, Math.min(0.22, this.bodyLean));
+        this.basketPress = Math.max(-24, Math.min(24, this.basketPress));
+        this.basketLean = Math.max(-0.28, Math.min(0.28, this.basketLean));
+        this.pushReach = Math.max(0, Math.min(26, this.pushReach));
+        if (!moving) {
+          this.basketPress *= 0.9;
+          if (Math.abs(this.basketPress) < 0.02) this.basketPress = 0;
+          this.basketLean *= 0.82;
+          this.pushReach *= 0.8;
+          this.bodyLean *= 0.7;
+        }
+      }
+      getBasketOffset() { return this.basketPress; }
+      getBasketLean() { return this.basketLean; }
+      setBasketPivot(pivotX, pivotY, lean) { this.basketPivot = { pivotX, pivotY, lean }; }
+      draw() {
+        const basketY = canvas.height - basketHeight - 10;
+        const offsetX = this.basketPress;
+        const centerX = basketX + basketWidth / 2 + offsetX;
+        const runSwing = Math.sin(this.runPhase);
+        const runLift = Math.cos(this.runPhase);
+        const bob = this.moving ? Math.abs(runSwing) * 2 : 0;
+
+        const gripInset = Math.max(24, basketWidth * 0.26);
+        const holdLocal = basketWidth / 2 - gripInset;
+        const pushLocal = holdLocal - 18 + this.pushReach * 0.35;
+        const pushHeight = basketHeight * 0.55 + (this.moving ? Math.abs(runSwing) * 4 : 0);
+        this.holdRelative = { x: holdLocal * this.facing, y: -basketHeight };
+        this.pushRelative = { x: pushLocal * this.facing, y: pushHeight - basketHeight };
+        if (!this.moving && this.pushReach < 1) this.pushRelative = null;
+
+        ctx.save();
+        ctx.translate(centerX, basketY);
+        ctx.rotate(this.bodyLean + (this.moving ? runSwing * 0.02 * this.facing : 0));
+        ctx.scale(this.facing, 1);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        ctx.strokeStyle = '#3f2e1f';
+        ctx.lineWidth = 7;
+        const backSwing = this.moving ? -runSwing : -0.18;
+        ctx.beginPath();
+        ctx.moveTo(-12, -8 - bob * 0.35);
+        ctx.quadraticCurveTo(-26 - backSwing * 12, 14 + runLift * 5, -6, 46);
+        ctx.stroke();
+        ctx.strokeStyle = '#f6d2b3';
+        ctx.lineWidth = 6;
+        const pushSwing = this.moving ? Math.sin(this.runPhase + Math.PI / 2) : 0;
+        ctx.beginPath();
+        ctx.moveTo(-18, -50 - bob);
+        ctx.quadraticCurveTo(-36 - pushSwing * 14, -22 + runLift * 3, pushLocal, pushHeight);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(16, -52 - bob * 0.8);
+        ctx.quadraticCurveTo(30 + runSwing * 10, -20 - runLift * 3, holdLocal, 0);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#3f2e1f';
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.moveTo(10, -6 - bob * 0.2);
+        ctx.quadraticCurveTo(24 + runSwing * 10, 12 - runLift * 6, 6, 44);
+        ctx.stroke();
+
+        ctx.fillStyle = '#242424';
+        ctx.beginPath();
+        ctx.ellipse(-6, 46, 10, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(6, 46, 10, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#2b8cf7';
+        ctx.fillRect(-16, -60 - bob, 32, 52);
+        ctx.fillStyle = '#1f5fba';
+        ctx.fillRect(-16, -34 - bob, 32, 9);
+
+        ctx.fillStyle = '#f6d2b3';
+        ctx.beginPath();
+        ctx.arc(0, -76 - bob, 15, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#3b2a1a';
+        ctx.beginPath();
+        ctx.ellipse(0, -83 - bob, 17, 12, 0, Math.PI, 0);
+        ctx.fill();
+        ctx.fillRect(-17, -83 - bob, 34, 5);
+
+        ctx.fillStyle = '#1b1b1b';
+        ctx.beginPath();
+        ctx.arc(-5, -78 - bob, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(5, -78 - bob, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#cc6f3f';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, -72 - bob, 6, 0, Math.PI);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+      drawHandsOverlay() {
+        if (!this.basketPivot || !this.holdRelative) return;
+        const { pivotX, pivotY, lean } = this.basketPivot;
+        const cos = Math.cos(lean);
+        const sin = Math.sin(lean);
+        ctx.save();
+        ctx.fillStyle = '#f6d2b3';
+        const hold = this.holdRelative;
+        const normalX = Math.sin(lean);
+        const normalY = -Math.cos(lean);
+        const rimLift = 5.5;
+        const holdX = pivotX + hold.x * cos - hold.y * sin + normalX * rimLift;
+        const holdY = pivotY + hold.x * sin + hold.y * cos + normalY * rimLift;
+        ctx.beginPath();
+        ctx.ellipse(holdX, holdY - 3, 5.5, 3.2, lean, 0, Math.PI * 2);
+        ctx.fill();
+        if (this.pushRelative) {
+          const push = this.pushRelative;
+          const pushX = pivotX + push.x * cos - push.y * sin + normalX * (rimLift - 0.8);
+          const pushY = pivotY + push.x * sin + push.y * cos + normalY * (rimLift - 0.8);
+          ctx.globalAlpha = this.moving ? 1 : 0.75;
+          ctx.beginPath();
+          ctx.ellipse(pushX, pushY - 2, 6.5, 3.6, lean, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
     }
 
     class FloatingText { constructor(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.opacity = 1; } update() { this.y -= 1; this.opacity -= 0.02; } draw() { ctx.globalAlpha = this.opacity; ctx.fillStyle = this.color; ctx.font = 'bold 16px Arial'; ctx.fillText(this.text, this.x, this.y); ctx.globalAlpha = 1; } }
@@ -254,29 +545,56 @@
       stopGameLoop();
       stopChickenLoop();
       score = 0; lives = 3; level = 1; nextLevelScore = 250;
-      basketX = canvas.width / 2 - 45; basketWidth = 120; basketHeight = 40; speed = 12;
-      eggs = []; goldenEggs = []; texts = [];
+      basketWidth = baseBasketWidth;
+      basketX = canvas.width / 2 - basketWidth / 2;
+      basketHeight = 36; speed = 12;
+      eggs = []; goldenEggs = []; hearts = []; hourglasses = []; bigBaskets = []; texts = [];
+      slowTimer = 0; bigTimer = 0; eggSpeedMultiplier = 1;
+      runner = new Runner();
       setupChickens();
       scoreDisplay.textContent = 'Punkty: 0';
       livesDisplay.textContent = 'Życia: 3';
       levelDisplay.textContent = 'Poziom: 1';
+      backgroundShiftX = 0;
+      backgroundShiftY = 0;
+      if (backgroundLayer) backgroundLayer.style.transform = 'translate(-50%, -50%)';
+      if (levelUpBanner) {
+        levelUpBanner.classList.remove('show');
+        levelUpBanner.textContent = 'Poziom 1';
+      }
+      if (levelBannerTimeout) {
+        clearTimeout(levelBannerTimeout);
+        levelBannerTimeout = null;
+      }
       gameRunning = true;
       startChickenLoop();
       gameLoop();
     }
 
     function drawBasket() {
+      if (!runner) runner = new Runner();
+      const offsetX = runner.getBasketOffset ? runner.getBasketOffset() : 0;
+      const lean = runner.getBasketLean ? runner.getBasketLean() : 0;
+      runner.draw();
       const basketY = canvas.height - basketHeight - 10;
-      const left = basketX;
-      const right = basketX + basketWidth;
-      const gradient = ctx.createLinearGradient(0, basketY, 0, basketY + basketHeight);
-      gradient.addColorStop(0, '#f4d7a6');
-      gradient.addColorStop(1, '#c79253');
+      const left = basketX + offsetX;
+      const right = left + basketWidth;
+      const pivotX = left + basketWidth / 2;
+      const pivotY = basketY + basketHeight;
+      runner.setBasketPivot && runner.setBasketPivot(pivotX, pivotY, lean);
+
+      ctx.save();
+      ctx.translate(pivotX, pivotY);
+      ctx.rotate(lean);
+      ctx.translate(-pivotX, -pivotY);
 
       ctx.save();
       ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
       ctx.shadowBlur = 8;
       ctx.shadowOffsetY = 4;
+      const gradient = ctx.createLinearGradient(left, basketY, left, basketY + basketHeight);
+      gradient.addColorStop(0, '#f4d7a6');
+      gradient.addColorStop(1, '#c79253');
       ctx.beginPath();
       ctx.moveTo(left + 16, basketY);
       ctx.quadraticCurveTo(left, basketY + basketHeight * 0.4, left + 22, basketY + basketHeight);
@@ -293,9 +611,9 @@
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(left + 24, basketY + 6);
-      ctx.quadraticCurveTo((left + right) / 2, basketY - 2, right - 24, basketY + 6);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.lineWidth = 2;
+      ctx.quadraticCurveTo((left + right) / 2, basketY - 4, right - 24, basketY + 6);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
+      ctx.lineWidth = 1.8;
       ctx.stroke();
       ctx.restore();
 
@@ -320,41 +638,120 @@
       ctx.restore();
 
       ctx.save();
-      ctx.lineWidth = 6;
-      const handleGradient = ctx.createLinearGradient(basketX, basketY, basketX + basketWidth, basketY);
+      ctx.lineWidth = 4.2;
+      const handleGradient = ctx.createLinearGradient(left, basketY, right, basketY);
       handleGradient.addColorStop(0, '#a06b32');
       handleGradient.addColorStop(1, '#c98b4f');
       ctx.strokeStyle = handleGradient;
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-      ctx.shadowBlur = 4;
-      ctx.shadowOffsetY = 2;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.18)';
+      ctx.shadowBlur = 3;
+      ctx.shadowOffsetY = 1.5;
       ctx.beginPath();
-      ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.2, Math.PI, 0);
+      ctx.arc(left + basketWidth / 2, basketY + 4, basketWidth / 2.8, Math.PI, 0);
       ctx.stroke();
       ctx.restore();
 
       ctx.save();
       ctx.beginPath();
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.6;
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-      ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.4, Math.PI, 0);
+      ctx.arc(left + basketWidth / 2, basketY + 4, basketWidth / 3, Math.PI, 0);
       ctx.stroke();
       ctx.restore();
+
+      ctx.restore();
+      runner.drawHandsOverlay();
     }
 
-    function updateBasket() { if (keys.left) basketX -= speed; if (keys.right) basketX += speed; basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketX)); }
+    function updateBasket() {
+      if (!runner) runner = new Runner();
+      const movingLeft = keys.left && !keys.right;
+      const movingRight = keys.right && !keys.left;
+      if (movingLeft) basketX -= speed;
+      if (movingRight) basketX += speed;
+      runner.update(movingLeft, movingRight);
+      const offsetX = runner.getBasketOffset ? runner.getBasketOffset() : 0;
+      let visualLeft = basketX + offsetX;
+      let visualRight = visualLeft + basketWidth;
+      if (visualLeft < 0) {
+        basketX -= visualLeft;
+        visualLeft = 0;
+        visualRight = basketWidth;
+      }
+      if (visualRight > canvas.width) {
+        basketX -= (visualRight - canvas.width);
+        visualRight = canvas.width;
+        visualLeft = visualRight - basketWidth;
+      }
+      basketX = Math.max(Math.min(basketX, canvas.width - basketWidth), 0);
+      applyBackgroundParallax();
+    }
+
+    function applyBackgroundParallax() {
+      if (!backgroundLayer) return;
+      const displayWidth = canvas.clientWidth || canvas.width;
+      const displayHeight = canvas.clientHeight || canvas.height;
+      const offsetX = runner && runner.getBasketOffset ? runner.getBasketOffset() : 0;
+      const basketCenter = basketX + offsetX + basketWidth / 2;
+      const normalizedCenter = canvas.width > 0 ? basketCenter / canvas.width : 0.5;
+      const stridePhase = runner ? runner.runPhase : 0;
+      const stridePresence = runner && runner.moving ? 1 : 0;
+      const strideWaveX = Math.sin(stridePhase) * stridePresence;
+      const strideWaveY = Math.cos(stridePhase) * stridePresence;
+      const lateralRange = displayWidth * 0.035;
+      const strideInfluenceX = -strideWaveX * displayWidth * 0.01;
+      const targetShiftX = -(normalizedCenter - 0.5) * lateralRange + strideInfluenceX;
+      const baseVerticalRange = displayHeight * 0.006;
+      const hoverOffset = displayHeight * 0.003;
+      const targetShiftY = -strideWaveY * baseVerticalRange - hoverOffset * stridePresence;
+      backgroundShiftX += (targetShiftX - backgroundShiftX) * 0.025;
+      backgroundShiftY += (targetShiftY - backgroundShiftY) * 0.035;
+      backgroundLayer.style.transform = `translate(-50%, -50%) translate(${backgroundShiftX.toFixed(2)}px, ${backgroundShiftY.toFixed(2)}px)`;
+    }
     function addText(x, y, text, color) { texts.push(new FloatingText(x, y, text, color)); }
 
     function checkCollisions() {
       const basketY = canvas.height - basketHeight - 10;
+      const offsetX = runner && runner.getBasketOffset ? runner.getBasketOffset() : 0;
+      const left = basketX + offsetX;
+      const right = left + basketWidth;
       [...eggs, ...goldenEggs].forEach(obj => {
-        if (obj.y > basketY && obj.x > basketX && obj.x < basketX + basketWidth) {
+        if (obj.y > basketY && obj.x > left && obj.x < right) {
           if (obj instanceof GoldenEgg) { score += 100; addText(obj.x, basketY, '+100', '#ffd700'); }
           else if (obj instanceof Egg) { score += 10; addText(obj.x, basketY, '+10', '#fff'); }
           removeObject(obj);
           checkLevelProgress();
         }
       });
+      for (let i = hearts.length - 1; i >= 0; i--) {
+        const heart = hearts[i];
+        if (heart.y > basketY && heart.x > left && heart.x < right) {
+          lives = Math.min(lives + 1, 5);
+          addText(heart.x, basketY, '+1 życie', '#ff4b6b');
+          hearts.splice(i, 1);
+        }
+      }
+      for (let i = hourglasses.length - 1; i >= 0; i--) {
+        const hourglass = hourglasses[i];
+        if (hourglass.y > basketY && hourglass.x > left && hourglass.x < right) {
+          slowTimer = 360;
+          eggSpeedMultiplier = 0.55;
+          addText(hourglass.x, basketY, 'Spowolnienie!', '#66d9ff');
+          hourglasses.splice(i, 1);
+        }
+      }
+      for (let i = bigBaskets.length - 1; i >= 0; i--) {
+        const big = bigBaskets[i];
+        if (big.y > basketY && big.x > left && big.x < right) {
+          bigTimer = 360;
+          const center = left + basketWidth / 2;
+          basketWidth = poweredBasketWidth;
+          const offsetAdjust = runner && runner.getBasketOffset ? runner.getBasketOffset() : 0;
+          basketX = Math.max(0, Math.min(canvas.width - basketWidth, center - basketWidth / 2 - offsetAdjust));
+          addText(big.x, basketY, 'Mega kosz!', '#ffdd55');
+          bigBaskets.splice(i, 1);
+        }
+      }
     }
 
     function checkMissedEggs() {
@@ -364,6 +761,15 @@
       }
       for (let i = goldenEggs.length - 1; i >= 0; i--) {
         if (goldenEggs[i].y > canvas.height) { goldenEggs.splice(i, 1); }
+      }
+      for (let i = hearts.length - 1; i >= 0; i--) {
+        if (hearts[i].y > canvas.height) hearts.splice(i, 1);
+      }
+      for (let i = hourglasses.length - 1; i >= 0; i--) {
+        if (hourglasses[i].y > canvas.height) hourglasses.splice(i, 1);
+      }
+      for (let i = bigBaskets.length - 1; i >= 0; i--) {
+        if (bigBaskets[i].y > canvas.height) bigBaskets.splice(i, 1);
       }
     }
 
@@ -379,7 +785,19 @@
       if (leveledUp) {
         levelDisplay.textContent = `Poziom: ${level}`;
         setupChickens();
+        showLevelUpBanner();
       }
+    }
+
+    function showLevelUpBanner() {
+      if (!levelUpBanner) return;
+      levelUpBanner.textContent = `Poziom ${level}`;
+      levelUpBanner.classList.add('show');
+      if (levelBannerTimeout) clearTimeout(levelBannerTimeout);
+      levelBannerTimeout = setTimeout(() => {
+        levelUpBanner.classList.remove('show');
+        levelBannerTimeout = null;
+      }, 2400);
     }
 
     function endGame() {
@@ -395,13 +813,31 @@
         stopGameLoop();
         return;
       }
+      updateBasket();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawBasket();
-      [...eggs, ...goldenEggs].forEach(o => { o.update(); o.draw(); });
-      checkCollisions(); checkMissedEggs(); updateBasket();
+      [...eggs, ...goldenEggs, ...hearts, ...hourglasses, ...bigBaskets].forEach(o => { o.update(); o.draw(); });
+      checkCollisions(); checkMissedEggs();
+      handlePowerupTimers();
       texts.forEach(t => { t.update(); t.draw(); }); texts = texts.filter(t => t.opacity > 0);
       scoreDisplay.textContent = `Punkty: ${score}`; livesDisplay.textContent = `Życia: ${lives}`;
       gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    function handlePowerupTimers() {
+      if (slowTimer > 0) {
+        slowTimer--;
+        if (slowTimer === 0) eggSpeedMultiplier = 1;
+      }
+      if (bigTimer > 0) {
+        bigTimer--;
+        if (bigTimer === 0) {
+          const offsetAdjust = runner && runner.getBasketOffset ? runner.getBasketOffset() : 0;
+          const basketCenter = basketX + offsetAdjust + basketWidth / 2;
+          basketWidth = baseBasketWidth;
+          basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketCenter - basketWidth / 2 - offsetAdjust));
+        }
+      }
     }
 
     function stopGameLoop() {
