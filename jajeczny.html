@@ -46,7 +46,7 @@
       background: url('https://serwer2007468.home.pl/jajeczny/4381319.jpg') center/cover;
       filter: saturate(0.95) brightness(1.05);
       transform: translate(-50%, -50%);
-      transition: transform 0.08s ease-out;
+      transition: transform 0.18s ease-out;
       pointer-events: none;
       z-index: 1;
     }
@@ -109,7 +109,7 @@
       text-align: center;
       z-index: 20;
     }
-    button {
+    button { 
       background: #4CAF50;
       color: white;
       border: none;
@@ -120,6 +120,28 @@
       margin-top: 15px;
     }
     button:hover { background: #45a049; }
+    #levelUpBanner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.92);
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff7d6;
+      padding: 24px 48px;
+      border-radius: 14px;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-shadow: 0 6px 12px rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 30;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+    #levelUpBanner.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
   </style>
 </head>
 <body>
@@ -132,6 +154,7 @@
     <div id="backgroundLayer"></div>
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <canvas id="chickensCanvas" width="960" height="100"></canvas>
+    <div id="levelUpBanner">Poziom 1</div>
     <div id="controls">
       <div class="ctrl-btn" id="leftBtn">◄</div>
       <div class="ctrl-btn" id="rightBtn">►</div>
@@ -159,6 +182,7 @@
     const gameOverScreen = document.getElementById('gameOverScreen');
     const finalScore = document.getElementById('finalScore');
     const backgroundLayer = document.getElementById('backgroundLayer');
+    const levelUpBanner = document.getElementById('levelUpBanner');
 
     let score = 0, lives = 3, level = 1;
     let basketX, basketWidth, basketHeight, speed;
@@ -182,6 +206,7 @@
     let eggSpeedMultiplier = 1;
     let runner = null;
     let backgroundShiftX = 0, backgroundShiftY = 0;
+    let levelBannerTimeout = null;
 
     class Chicken {
       constructor(x, y) {
@@ -486,6 +511,14 @@
       backgroundShiftX = 0;
       backgroundShiftY = 0;
       if (backgroundLayer) backgroundLayer.style.transform = 'translate(-50%, -50%)';
+      if (levelUpBanner) {
+        levelUpBanner.classList.remove('show');
+        levelUpBanner.textContent = 'Poziom 1';
+      }
+      if (levelBannerTimeout) {
+        clearTimeout(levelBannerTimeout);
+        levelBannerTimeout = null;
+      }
       gameRunning = true;
       startChickenLoop();
       gameLoop();
@@ -588,14 +621,18 @@
       const displayHeight = canvas.clientHeight || canvas.height;
       const basketCenter = basketX + basketWidth / 2;
       const normalizedCenter = canvas.width > 0 ? basketCenter / canvas.width : 0.5;
-      const runCycle = runner ? Math.sin(runner.runPhase * 1.4) : 0;
-      const lateralRange = displayWidth * 0.18;
-      const strideInfluenceX = runCycle * 6;
-      const targetShiftX = (normalizedCenter - 0.5) * lateralRange + strideInfluenceX;
-      const strideAmplitude = runner ? (runner.moving ? displayHeight * 0.033 : displayHeight * 0.011) : 0;
-      const targetShiftY = runner ? runCycle * -strideAmplitude : 0;
-      backgroundShiftX += (targetShiftX - backgroundShiftX) * 0.08;
-      backgroundShiftY += (targetShiftY - backgroundShiftY) * 0.1;
+      const stridePhase = runner ? runner.runPhase : 0;
+      const stridePresence = runner && runner.moving ? 1 : 0;
+      const strideWaveX = Math.sin(stridePhase) * stridePresence;
+      const strideWaveY = Math.cos(stridePhase) * stridePresence;
+      const lateralRange = displayWidth * 0.035;
+      const strideInfluenceX = -strideWaveX * displayWidth * 0.01;
+      const targetShiftX = -(normalizedCenter - 0.5) * lateralRange + strideInfluenceX;
+      const baseVerticalRange = displayHeight * 0.006;
+      const hoverOffset = displayHeight * 0.003;
+      const targetShiftY = -strideWaveY * baseVerticalRange - hoverOffset * stridePresence;
+      backgroundShiftX += (targetShiftX - backgroundShiftX) * 0.025;
+      backgroundShiftY += (targetShiftY - backgroundShiftY) * 0.035;
       backgroundLayer.style.transform = `translate(-50%, -50%) translate(${backgroundShiftX.toFixed(2)}px, ${backgroundShiftY.toFixed(2)}px)`;
     }
     function addText(x, y, text, color) { texts.push(new FloatingText(x, y, text, color)); }
@@ -671,7 +708,19 @@
       if (leveledUp) {
         levelDisplay.textContent = `Poziom: ${level}`;
         setupChickens();
+        showLevelUpBanner();
       }
+    }
+
+    function showLevelUpBanner() {
+      if (!levelUpBanner) return;
+      levelUpBanner.textContent = `Poziom ${level}`;
+      levelUpBanner.classList.add('show');
+      if (levelBannerTimeout) clearTimeout(levelBannerTimeout);
+      levelBannerTimeout = setTimeout(() => {
+        levelUpBanner.classList.remove('show');
+        levelBannerTimeout = null;
+      }, 2400);
     }
 
     function endGame() {
