@@ -163,6 +163,7 @@
     let slowTimer = 0, bigTimer = 0;
     let eggSpeedMultiplier = 1;
     let runner = null;
+    let backgroundShiftX = 0, backgroundShiftY = 0;
 
     class Chicken {
       constructor(x, y) {
@@ -464,6 +465,9 @@
       scoreDisplay.textContent = 'Punkty: 0';
       livesDisplay.textContent = 'Życia: 3';
       levelDisplay.textContent = 'Poziom: 1';
+      backgroundShiftX = 0;
+      backgroundShiftY = 0;
+      canvas.style.backgroundPosition = '50% 50%';
       gameRunning = true;
       startChickenLoop();
       gameLoop();
@@ -557,6 +561,18 @@
       if (movingRight) basketX += speed;
       basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketX));
       runner.update(movingLeft, movingRight);
+      applyBackgroundParallax();
+    }
+
+    function applyBackgroundParallax() {
+      const basketCenter = basketX + basketWidth / 2;
+      const normalizedCenter = canvas.width > 0 ? basketCenter / canvas.width : 0.5;
+      const targetShiftX = (normalizedCenter - 0.5) * 8;
+      const runCycle = runner ? Math.sin(runner.runPhase * 1.4) : 0;
+      const targetShiftY = runner ? (runner.moving ? runCycle * -2.2 : runCycle * -0.6) : 0;
+      backgroundShiftX += (targetShiftX - backgroundShiftX) * 0.1;
+      backgroundShiftY += (targetShiftY - backgroundShiftY) * 0.12;
+      canvas.style.backgroundPosition = `${50 + backgroundShiftX}% ${50 + backgroundShiftY}%`;
     }
     function addText(x, y, text, color) { texts.push(new FloatingText(x, y, text, color)); }
 
