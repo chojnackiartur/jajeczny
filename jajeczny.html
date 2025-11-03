@@ -377,9 +377,13 @@
         this.facing = 1;
         this.runPhase = 0;
         this.moving = false;
-        this.leftHandWorld = null;
-        this.rightHandWorld = null;
-        this.handWorldY = null;
+        this.basketLean = 0;
+        this.basketPress = 0;
+        this.pushReach = 0;
+        this.bodyLean = 0;
+        this.holdRelative = null;
+        this.pushRelative = null;
+        this.basketPivot = null;
       }
       update(moveLeft, moveRight) {
         const moving = moveLeft !== moveRight && (moveLeft || moveRight);
@@ -389,26 +393,52 @@
           this.runPhase = (this.runPhase + 0.24) % (Math.PI * 2);
         } else {
           this.moving = false;
-          this.runPhase *= 0.8;
+          this.runPhase *= 0.82;
           if (Math.abs(this.runPhase) < 0.01) this.runPhase = 0;
         }
+        const stridePulse = Math.sin(this.runPhase + Math.PI / 2);
+        const leanTarget = moving ? this.facing * (0.16 + stridePulse * 0.04) : 0;
+        const pressTarget = moving ? this.facing * (8 + stridePulse * 2) : 0;
+        const reachTarget = moving ? 14 + Math.abs(Math.sin(this.runPhase)) * 8 : 0;
+        const bodyLeanTarget = moving ? this.facing * 0.08 : 0;
+        this.basketLean += (leanTarget - this.basketLean) * 0.2;
+        this.basketPress += (pressTarget - this.basketPress) * 0.18;
+        this.pushReach += (reachTarget - this.pushReach) * 0.22;
+        this.bodyLean += (bodyLeanTarget - this.bodyLean) * 0.14;
+        this.bodyLean = Math.max(-0.22, Math.min(0.22, this.bodyLean));
+        this.basketPress = Math.max(-16, Math.min(16, this.basketPress));
+        this.basketLean = Math.max(-0.28, Math.min(0.28, this.basketLean));
+        this.pushReach = Math.max(0, Math.min(26, this.pushReach));
+        if (!moving) {
+          this.basketPress *= 0.9;
+          if (Math.abs(this.basketPress) < 0.02) this.basketPress = 0;
+          this.basketLean *= 0.82;
+          this.pushReach *= 0.8;
+          this.bodyLean *= 0.7;
+        }
       }
+      getBasketOffset() { return this.basketPress; }
+      getBasketLean() { return this.basketLean; }
+      setBasketPivot(pivotX, pivotY, lean) { this.basketPivot = { pivotX, pivotY, lean }; }
       draw() {
         const basketY = canvas.height - basketHeight - 10;
-        const centerX = basketX + basketWidth / 2;
+        const offsetX = this.basketPress;
+        const centerX = basketX + basketWidth / 2 + offsetX;
         const runSwing = Math.sin(this.runPhase);
         const runLift = Math.cos(this.runPhase);
         const bob = this.moving ? Math.abs(runSwing) * 2 : 0;
 
-        const gripInset = Math.max(22, basketWidth * 0.22);
-        const contactLeft = -basketWidth / 2 + gripInset;
-        const contactRight = basketWidth / 2 - gripInset;
-        this.leftHandWorld = centerX + contactLeft * this.facing;
-        this.rightHandWorld = centerX + contactRight * this.facing;
-        this.handWorldY = basketY;
+        const gripInset = Math.max(24, basketWidth * 0.26);
+        const holdLocal = basketWidth / 2 - gripInset;
+        const pushLocal = holdLocal - 18 + this.pushReach * 0.35;
+        const pushHeight = basketHeight * 0.55 + (this.moving ? Math.abs(runSwing) * 4 : 0);
+        this.holdRelative = { x: holdLocal * this.facing, y: -basketHeight };
+        this.pushRelative = { x: pushLocal * this.facing, y: pushHeight - basketHeight };
+        if (!this.moving && this.pushReach < 1) this.pushRelative = null;
 
         ctx.save();
         ctx.translate(centerX, basketY);
+        ctx.rotate(this.bodyLean + (this.moving ? runSwing * 0.02 * this.facing : 0));
         ctx.scale(this.facing, 1);
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -417,77 +447,90 @@
         ctx.lineWidth = 7;
         const backSwing = this.moving ? -runSwing : -0.18;
         ctx.beginPath();
-        ctx.moveTo(-12, -6 - bob * 0.3);
-        ctx.quadraticCurveTo(-24 - backSwing * 10, 12 + runLift * 4, -6, 44);
+        ctx.moveTo(-12, -8 - bob * 0.35);
+        ctx.quadraticCurveTo(-26 - backSwing * 12, 14 + runLift * 5, -6, 46);
         ctx.stroke();
-        const frontSwing = this.moving ? runSwing : 0.18;
+        ctx.strokeStyle = '#f6d2b3';
+        ctx.lineWidth = 6;
+        const pushSwing = this.moving ? Math.sin(this.runPhase + Math.PI / 2) : 0;
         ctx.beginPath();
-        ctx.moveTo(12, -6 - bob * 0.3);
-        ctx.quadraticCurveTo(24 + frontSwing * 10, 12 - runLift * 4, 6, 44);
+        ctx.moveTo(-18, -50 - bob);
+        ctx.quadraticCurveTo(-36 - pushSwing * 14, -22 + runLift * 3, pushLocal, pushHeight);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(16, -52 - bob * 0.8);
+        ctx.quadraticCurveTo(30 + runSwing * 10, -20 - runLift * 3, holdLocal, 0);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#3f2e1f';
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.moveTo(10, -6 - bob * 0.2);
+        ctx.quadraticCurveTo(24 + runSwing * 10, 12 - runLift * 6, 6, 44);
         ctx.stroke();
 
         ctx.fillStyle = '#242424';
         ctx.beginPath();
-        ctx.ellipse(-6, 44, 10, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse(-6, 46, 10, 4, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.ellipse(6, 44, 10, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse(6, 46, 10, 4, 0, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.fillStyle = '#2b8cf7';
-        ctx.fillRect(-15, -58 - bob, 30, 50);
+        ctx.fillRect(-16, -60 - bob, 32, 52);
         ctx.fillStyle = '#1f5fba';
-        ctx.fillRect(-15, -32 - bob, 30, 8);
+        ctx.fillRect(-16, -34 - bob, 32, 9);
 
         ctx.fillStyle = '#f6d2b3';
         ctx.beginPath();
-        ctx.arc(0, -74 - bob, 15, 0, Math.PI * 2);
+        ctx.arc(0, -76 - bob, 15, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.fillStyle = '#3b2a1a';
         ctx.beginPath();
-        ctx.ellipse(0, -81 - bob, 17, 12, 0, Math.PI, 0);
+        ctx.ellipse(0, -83 - bob, 17, 12, 0, Math.PI, 0);
         ctx.fill();
-        ctx.fillRect(-17, -81 - bob, 34, 5);
+        ctx.fillRect(-17, -83 - bob, 34, 5);
 
         ctx.fillStyle = '#1b1b1b';
         ctx.beginPath();
-        ctx.arc(-5, -76 - bob, 2, 0, Math.PI * 2);
+        ctx.arc(-5, -78 - bob, 2, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(5, -76 - bob, 2, 0, Math.PI * 2);
+        ctx.arc(5, -78 - bob, 2, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.strokeStyle = '#cc6f3f';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(0, -70 - bob, 6, 0, Math.PI);
-        ctx.stroke();
-
-        ctx.strokeStyle = '#f6d2b3';
-        ctx.lineWidth = 6;
-        const armSwing = this.moving ? Math.sin(this.runPhase + Math.PI / 2) : 0;
-        ctx.beginPath();
-        ctx.moveTo(-14, -50 - bob);
-        ctx.quadraticCurveTo(-32 - armSwing * 12, -24, contactLeft, 0);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(14, -50 - bob);
-        ctx.quadraticCurveTo(32 + armSwing * 12, -24, contactRight, 0);
+        ctx.arc(0, -72 - bob, 6, 0, Math.PI);
         ctx.stroke();
 
         ctx.restore();
       }
       drawHandsOverlay() {
-        if (this.handWorldY === null) return;
+        if (!this.basketPivot || !this.holdRelative) return;
+        const { pivotX, pivotY, lean } = this.basketPivot;
+        const cos = Math.cos(lean);
+        const sin = Math.sin(lean);
         ctx.save();
         ctx.fillStyle = '#f6d2b3';
+        const hold = this.holdRelative;
+        const holdX = pivotX + hold.x * cos - hold.y * sin;
+        const holdY = pivotY + hold.x * sin + hold.y * cos;
         ctx.beginPath();
-        ctx.ellipse(this.leftHandWorld, this.handWorldY - 2, 7, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse(holdX, holdY - 3, 5.5, 3.2, lean, 0, Math.PI * 2);
         ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(this.rightHandWorld, this.handWorldY - 2, 7, 4, 0, 0, Math.PI * 2);
-        ctx.fill();
+        if (this.pushRelative) {
+          const push = this.pushRelative;
+          const pushX = pivotX + push.x * cos - push.y * sin;
+          const pushY = pivotY + push.x * sin + push.y * cos;
+          ctx.globalAlpha = this.moving ? 1 : 0.75;
+          ctx.beginPath();
+          ctx.ellipse(pushX, pushY - 2, 6.5, 3.6, lean, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       }
     }
@@ -526,18 +569,28 @@
 
     function drawBasket() {
       if (!runner) runner = new Runner();
+      const offsetX = runner.getBasketOffset ? runner.getBasketOffset() : 0;
+      const lean = runner.getBasketLean ? runner.getBasketLean() : 0;
       runner.draw();
       const basketY = canvas.height - basketHeight - 10;
-      const left = basketX;
-      const right = basketX + basketWidth;
-      const gradient = ctx.createLinearGradient(0, basketY, 0, basketY + basketHeight);
-      gradient.addColorStop(0, '#f4d7a6');
-      gradient.addColorStop(1, '#c79253');
+      const left = basketX + offsetX;
+      const right = left + basketWidth;
+      const pivotX = left + basketWidth / 2;
+      const pivotY = basketY + basketHeight;
+      runner.setBasketPivot && runner.setBasketPivot(pivotX, pivotY, lean);
+
+      ctx.save();
+      ctx.translate(pivotX, pivotY);
+      ctx.rotate(lean);
+      ctx.translate(-pivotX, -pivotY);
 
       ctx.save();
       ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
       ctx.shadowBlur = 8;
       ctx.shadowOffsetY = 4;
+      const gradient = ctx.createLinearGradient(left, basketY, left, basketY + basketHeight);
+      gradient.addColorStop(0, '#f4d7a6');
+      gradient.addColorStop(1, '#c79253');
       ctx.beginPath();
       ctx.moveTo(left + 16, basketY);
       ctx.quadraticCurveTo(left, basketY + basketHeight * 0.4, left + 22, basketY + basketHeight);
@@ -554,9 +607,9 @@
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(left + 24, basketY + 6);
-      ctx.quadraticCurveTo((left + right) / 2, basketY - 2, right - 24, basketY + 6);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-      ctx.lineWidth = 2;
+      ctx.quadraticCurveTo((left + right) / 2, basketY - 4, right - 24, basketY + 6);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
+      ctx.lineWidth = 1.8;
       ctx.stroke();
       ctx.restore();
 
@@ -581,25 +634,27 @@
       ctx.restore();
 
       ctx.save();
-      ctx.lineWidth = 6;
-      const handleGradient = ctx.createLinearGradient(basketX, basketY, basketX + basketWidth, basketY);
+      ctx.lineWidth = 4.2;
+      const handleGradient = ctx.createLinearGradient(left, basketY, right, basketY);
       handleGradient.addColorStop(0, '#a06b32');
       handleGradient.addColorStop(1, '#c98b4f');
       ctx.strokeStyle = handleGradient;
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-      ctx.shadowBlur = 4;
-      ctx.shadowOffsetY = 2;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.18)';
+      ctx.shadowBlur = 3;
+      ctx.shadowOffsetY = 1.5;
       ctx.beginPath();
-      ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.2, Math.PI, 0);
+      ctx.arc(left + basketWidth / 2, basketY + 4, basketWidth / 2.8, Math.PI, 0);
       ctx.stroke();
       ctx.restore();
 
       ctx.save();
       ctx.beginPath();
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.6;
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-      ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.4, Math.PI, 0);
+      ctx.arc(left + basketWidth / 2, basketY + 4, basketWidth / 3, Math.PI, 0);
       ctx.stroke();
+      ctx.restore();
+
       ctx.restore();
       runner.drawHandsOverlay();
     }
@@ -610,8 +665,21 @@
       const movingRight = keys.right && !keys.left;
       if (movingLeft) basketX -= speed;
       if (movingRight) basketX += speed;
-      basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketX));
       runner.update(movingLeft, movingRight);
+      const offsetX = runner.getBasketOffset ? runner.getBasketOffset() : 0;
+      let visualLeft = basketX + offsetX;
+      let visualRight = visualLeft + basketWidth;
+      if (visualLeft < 0) {
+        basketX -= visualLeft;
+        visualLeft = 0;
+        visualRight = basketWidth;
+      }
+      if (visualRight > canvas.width) {
+        basketX -= (visualRight - canvas.width);
+        visualRight = canvas.width;
+        visualLeft = visualRight - basketWidth;
+      }
+      basketX = Math.max(Math.min(basketX, canvas.width - basketWidth), 0);
       applyBackgroundParallax();
     }
 
@@ -619,7 +687,8 @@
       if (!backgroundLayer) return;
       const displayWidth = canvas.clientWidth || canvas.width;
       const displayHeight = canvas.clientHeight || canvas.height;
-      const basketCenter = basketX + basketWidth / 2;
+      const offsetX = runner && runner.getBasketOffset ? runner.getBasketOffset() : 0;
+      const basketCenter = basketX + offsetX + basketWidth / 2;
       const normalizedCenter = canvas.width > 0 ? basketCenter / canvas.width : 0.5;
       const stridePhase = runner ? runner.runPhase : 0;
       const stridePresence = runner && runner.moving ? 1 : 0;
@@ -639,8 +708,11 @@
 
     function checkCollisions() {
       const basketY = canvas.height - basketHeight - 10;
+      const offsetX = runner && runner.getBasketOffset ? runner.getBasketOffset() : 0;
+      const left = basketX + offsetX;
+      const right = left + basketWidth;
       [...eggs, ...goldenEggs].forEach(obj => {
-        if (obj.y > basketY && obj.x > basketX && obj.x < basketX + basketWidth) {
+        if (obj.y > basketY && obj.x > left && obj.x < right) {
           if (obj instanceof GoldenEgg) { score += 100; addText(obj.x, basketY, '+100', '#ffd700'); }
           else if (obj instanceof Egg) { score += 10; addText(obj.x, basketY, '+10', '#fff'); }
           removeObject(obj);
@@ -649,7 +721,7 @@
       });
       for (let i = hearts.length - 1; i >= 0; i--) {
         const heart = hearts[i];
-        if (heart.y > basketY && heart.x > basketX && heart.x < basketX + basketWidth) {
+        if (heart.y > basketY && heart.x > left && heart.x < right) {
           lives = Math.min(lives + 1, 5);
           addText(heart.x, basketY, '+1 życie', '#ff4b6b');
           hearts.splice(i, 1);
@@ -657,7 +729,7 @@
       }
       for (let i = hourglasses.length - 1; i >= 0; i--) {
         const hourglass = hourglasses[i];
-        if (hourglass.y > basketY && hourglass.x > basketX && hourglass.x < basketX + basketWidth) {
+        if (hourglass.y > basketY && hourglass.x > left && hourglass.x < right) {
           slowTimer = 360;
           eggSpeedMultiplier = 0.55;
           addText(hourglass.x, basketY, 'Spowolnienie!', '#66d9ff');
@@ -666,11 +738,12 @@
       }
       for (let i = bigBaskets.length - 1; i >= 0; i--) {
         const big = bigBaskets[i];
-        if (big.y > basketY && big.x > basketX && big.x < basketX + basketWidth) {
+        if (big.y > basketY && big.x > left && big.x < right) {
           bigTimer = 360;
-          const center = basketX + basketWidth / 2;
+          const center = left + basketWidth / 2;
           basketWidth = poweredBasketWidth;
-          basketX = Math.max(0, Math.min(canvas.width - basketWidth, center - basketWidth / 2));
+          const offsetAdjust = runner && runner.getBasketOffset ? runner.getBasketOffset() : 0;
+          basketX = Math.max(0, Math.min(canvas.width - basketWidth, center - basketWidth / 2 - offsetAdjust));
           addText(big.x, basketY, 'Mega kosz!', '#ffdd55');
           bigBaskets.splice(i, 1);
         }
@@ -755,9 +828,10 @@
       if (bigTimer > 0) {
         bigTimer--;
         if (bigTimer === 0) {
-          const basketCenter = basketX + basketWidth / 2;
+          const offsetAdjust = runner && runner.getBasketOffset ? runner.getBasketOffset() : 0;
+          const basketCenter = basketX + offsetAdjust + basketWidth / 2;
           basketWidth = baseBasketWidth;
-          basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketCenter - basketWidth / 2));
+          basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketCenter - basketWidth / 2 - offsetAdjust));
         }
       }
     }
