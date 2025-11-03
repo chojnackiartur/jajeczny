@@ -154,8 +154,15 @@
     const spawnChanceBase = 0.0045;
     const spawnChanceGrowth = 0.0004;
     const goldenEggChance = 0.12;
+    const heartChance = 0.025;
+    const hourglassChance = 0.018;
+    const bigBasketChance = 0.018;
+    const baseBasketWidth = 108;
+    const poweredBasketWidth = 168;
     let nextLevelScore = 250;
     let slowTimer = 0, bigTimer = 0;
+    let eggSpeedMultiplier = 1;
+    let runner = null;
 
     class Chicken {
       constructor(x, y) {
@@ -209,6 +216,16 @@
       const dy = 4 + Math.random() * 1.5 + level * 0.3;
       if (Math.random() < goldenEggChance) goldenEggs.push(new GoldenEgg(x, 100, dy));
       else eggs.push(new Egg(x, 100, dy));
+      maybeSpawnPowerup(x);
+    }
+
+    function maybeSpawnPowerup(x) {
+      const roll = Math.random();
+      const baseY = 100;
+      const dy = 3 + Math.random() * 1.2 + level * 0.2;
+      if (roll < heartChance) hearts.push(new Heart(x, baseY, dy));
+      else if (roll < heartChance + hourglassChance) hourglasses.push(new Hourglass(x, baseY, dy));
+      else if (roll < heartChance + hourglassChance + bigBasketChance) bigBaskets.push(new BigBasket(x, baseY, dy));
     }
 
     function setupChickens() {
@@ -241,11 +258,194 @@
     class Egg {
       constructor(x, y, dy) { this.x = x; this.y = y; this.dy = dy; }
       draw() { ctx.beginPath(); ctx.ellipse(this.x, this.y, 8, 12, 0, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#ddd'; ctx.stroke(); }
-      update() { this.y += this.dy; }
+      update() { this.y += this.dy * eggSpeedMultiplier; }
     }
 
     class GoldenEgg extends Egg {
       draw() { ctx.beginPath(); ctx.ellipse(this.x, this.y, 10, 14, 0, 0, Math.PI * 2); ctx.fillStyle = 'gold'; ctx.fill(); ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 2; ctx.stroke(); ctx.beginPath(); ctx.moveTo(this.x - 5, this.y - 5); ctx.lineTo(this.x, this.y - 10); ctx.lineTo(this.x + 5, this.y - 5); ctx.strokeStyle = '#fff8dc'; ctx.lineWidth = 1; ctx.stroke(); }
+    }
+
+    class PowerUp {
+      constructor(x, y, dy) { this.x = x; this.y = y; this.dy = dy; }
+      update() { this.y += this.dy * eggSpeedMultiplier; }
+    }
+
+    class Heart extends PowerUp {
+      draw() {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.bezierCurveTo(this.x - 12, this.y - 12, this.x - 14, this.y + 8, this.x, this.y + 14);
+        ctx.bezierCurveTo(this.x + 14, this.y + 8, this.x + 12, this.y - 12, this.x, this.y);
+        ctx.fillStyle = '#ff4b6b';
+        ctx.fill();
+        ctx.strokeStyle = '#ff9aad';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    class Hourglass extends PowerUp {
+      draw() {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(this.x - 10, this.y - 14);
+        ctx.lineTo(this.x + 10, this.y - 14);
+        ctx.lineTo(this.x + 6, this.y - 2);
+        ctx.lineTo(this.x + 10, this.y + 14);
+        ctx.lineTo(this.x - 10, this.y + 14);
+        ctx.lineTo(this.x - 6, this.y - 2);
+        ctx.closePath();
+        ctx.fillStyle = '#66d9ff';
+        ctx.fill();
+        ctx.strokeStyle = '#0a5273';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(this.x - 6, this.y - 2);
+        ctx.lineTo(this.x + 6, this.y - 2);
+        ctx.strokeStyle = '#0a5273';
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    class BigBasket extends PowerUp {
+      draw() {
+        ctx.save();
+        ctx.fillStyle = '#ffdd55';
+        ctx.strokeStyle = '#aa7a00';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.rect(this.x - 12, this.y - 8, 24, 16);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - 10, 12, Math.PI, 0);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    class Runner {
+      constructor() {
+        this.facing = 1;
+        this.runPhase = 0;
+        this.moving = false;
+        this.leftHandWorld = null;
+        this.rightHandWorld = null;
+        this.handWorldY = null;
+      }
+      update(moveLeft, moveRight) {
+        const moving = moveLeft !== moveRight && (moveLeft || moveRight);
+        if (moving) {
+          this.moving = true;
+          this.facing = moveRight ? 1 : -1;
+          this.runPhase = (this.runPhase + 0.24) % (Math.PI * 2);
+        } else {
+          this.moving = false;
+          this.runPhase *= 0.8;
+          if (Math.abs(this.runPhase) < 0.01) this.runPhase = 0;
+        }
+      }
+      draw() {
+        const basketY = canvas.height - basketHeight - 10;
+        const centerX = basketX + basketWidth / 2;
+        const runSwing = Math.sin(this.runPhase);
+        const runLift = Math.cos(this.runPhase);
+        const bob = this.moving ? Math.abs(runSwing) * 2 : 0;
+
+        const gripInset = Math.max(22, basketWidth * 0.22);
+        const contactLeft = -basketWidth / 2 + gripInset;
+        const contactRight = basketWidth / 2 - gripInset;
+        this.leftHandWorld = centerX + contactLeft * this.facing;
+        this.rightHandWorld = centerX + contactRight * this.facing;
+        this.handWorldY = basketY;
+
+        ctx.save();
+        ctx.translate(centerX, basketY);
+        ctx.scale(this.facing, 1);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        ctx.strokeStyle = '#3f2e1f';
+        ctx.lineWidth = 7;
+        const backSwing = this.moving ? -runSwing : -0.18;
+        ctx.beginPath();
+        ctx.moveTo(-12, -6 - bob * 0.3);
+        ctx.quadraticCurveTo(-24 - backSwing * 10, 12 + runLift * 4, -6, 44);
+        ctx.stroke();
+        const frontSwing = this.moving ? runSwing : 0.18;
+        ctx.beginPath();
+        ctx.moveTo(12, -6 - bob * 0.3);
+        ctx.quadraticCurveTo(24 + frontSwing * 10, 12 - runLift * 4, 6, 44);
+        ctx.stroke();
+
+        ctx.fillStyle = '#242424';
+        ctx.beginPath();
+        ctx.ellipse(-6, 44, 10, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(6, 44, 10, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#2b8cf7';
+        ctx.fillRect(-15, -58 - bob, 30, 50);
+        ctx.fillStyle = '#1f5fba';
+        ctx.fillRect(-15, -32 - bob, 30, 8);
+
+        ctx.fillStyle = '#f6d2b3';
+        ctx.beginPath();
+        ctx.arc(0, -74 - bob, 15, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#3b2a1a';
+        ctx.beginPath();
+        ctx.ellipse(0, -81 - bob, 17, 12, 0, Math.PI, 0);
+        ctx.fill();
+        ctx.fillRect(-17, -81 - bob, 34, 5);
+
+        ctx.fillStyle = '#1b1b1b';
+        ctx.beginPath();
+        ctx.arc(-5, -76 - bob, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(5, -76 - bob, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#cc6f3f';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, -70 - bob, 6, 0, Math.PI);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#f6d2b3';
+        ctx.lineWidth = 6;
+        const armSwing = this.moving ? Math.sin(this.runPhase + Math.PI / 2) : 0;
+        ctx.beginPath();
+        ctx.moveTo(-14, -50 - bob);
+        ctx.quadraticCurveTo(-32 - armSwing * 12, -24, contactLeft, 0);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(14, -50 - bob);
+        ctx.quadraticCurveTo(32 + armSwing * 12, -24, contactRight, 0);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+      drawHandsOverlay() {
+        if (this.handWorldY === null) return;
+        ctx.save();
+        ctx.fillStyle = '#f6d2b3';
+        ctx.beginPath();
+        ctx.ellipse(this.leftHandWorld, this.handWorldY - 2, 7, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(this.rightHandWorld, this.handWorldY - 2, 7, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
     class FloatingText { constructor(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.opacity = 1; } update() { this.y -= 1; this.opacity -= 0.02; } draw() { ctx.globalAlpha = this.opacity; ctx.fillStyle = this.color; ctx.font = 'bold 16px Arial'; ctx.fillText(this.text, this.x, this.y); ctx.globalAlpha = 1; } }
@@ -254,8 +454,12 @@
       stopGameLoop();
       stopChickenLoop();
       score = 0; lives = 3; level = 1; nextLevelScore = 250;
-      basketX = canvas.width / 2 - 45; basketWidth = 120; basketHeight = 40; speed = 12;
-      eggs = []; goldenEggs = []; texts = [];
+      basketWidth = baseBasketWidth;
+      basketX = canvas.width / 2 - basketWidth / 2;
+      basketHeight = 36; speed = 12;
+      eggs = []; goldenEggs = []; hearts = []; hourglasses = []; bigBaskets = []; texts = [];
+      slowTimer = 0; bigTimer = 0; eggSpeedMultiplier = 1;
+      runner = new Runner();
       setupChickens();
       scoreDisplay.textContent = 'Punkty: 0';
       livesDisplay.textContent = 'Życia: 3';
@@ -266,6 +470,8 @@
     }
 
     function drawBasket() {
+      if (!runner) runner = new Runner();
+      runner.draw();
       const basketY = canvas.height - basketHeight - 10;
       const left = basketX;
       const right = basketX + basketWidth;
@@ -340,9 +546,18 @@
       ctx.arc(basketX + basketWidth / 2, basketY + 2, basketWidth / 2.4, Math.PI, 0);
       ctx.stroke();
       ctx.restore();
+      runner.drawHandsOverlay();
     }
 
-    function updateBasket() { if (keys.left) basketX -= speed; if (keys.right) basketX += speed; basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketX)); }
+    function updateBasket() {
+      if (!runner) runner = new Runner();
+      const movingLeft = keys.left && !keys.right;
+      const movingRight = keys.right && !keys.left;
+      if (movingLeft) basketX -= speed;
+      if (movingRight) basketX += speed;
+      basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketX));
+      runner.update(movingLeft, movingRight);
+    }
     function addText(x, y, text, color) { texts.push(new FloatingText(x, y, text, color)); }
 
     function checkCollisions() {
@@ -355,6 +570,34 @@
           checkLevelProgress();
         }
       });
+      for (let i = hearts.length - 1; i >= 0; i--) {
+        const heart = hearts[i];
+        if (heart.y > basketY && heart.x > basketX && heart.x < basketX + basketWidth) {
+          lives = Math.min(lives + 1, 5);
+          addText(heart.x, basketY, '+1 życie', '#ff4b6b');
+          hearts.splice(i, 1);
+        }
+      }
+      for (let i = hourglasses.length - 1; i >= 0; i--) {
+        const hourglass = hourglasses[i];
+        if (hourglass.y > basketY && hourglass.x > basketX && hourglass.x < basketX + basketWidth) {
+          slowTimer = 360;
+          eggSpeedMultiplier = 0.55;
+          addText(hourglass.x, basketY, 'Spowolnienie!', '#66d9ff');
+          hourglasses.splice(i, 1);
+        }
+      }
+      for (let i = bigBaskets.length - 1; i >= 0; i--) {
+        const big = bigBaskets[i];
+        if (big.y > basketY && big.x > basketX && big.x < basketX + basketWidth) {
+          bigTimer = 360;
+          const center = basketX + basketWidth / 2;
+          basketWidth = poweredBasketWidth;
+          basketX = Math.max(0, Math.min(canvas.width - basketWidth, center - basketWidth / 2));
+          addText(big.x, basketY, 'Mega kosz!', '#ffdd55');
+          bigBaskets.splice(i, 1);
+        }
+      }
     }
 
     function checkMissedEggs() {
@@ -364,6 +607,15 @@
       }
       for (let i = goldenEggs.length - 1; i >= 0; i--) {
         if (goldenEggs[i].y > canvas.height) { goldenEggs.splice(i, 1); }
+      }
+      for (let i = hearts.length - 1; i >= 0; i--) {
+        if (hearts[i].y > canvas.height) hearts.splice(i, 1);
+      }
+      for (let i = hourglasses.length - 1; i >= 0; i--) {
+        if (hourglasses[i].y > canvas.height) hourglasses.splice(i, 1);
+      }
+      for (let i = bigBaskets.length - 1; i >= 0; i--) {
+        if (bigBaskets[i].y > canvas.height) bigBaskets.splice(i, 1);
       }
     }
 
@@ -395,13 +647,30 @@
         stopGameLoop();
         return;
       }
+      updateBasket();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawBasket();
-      [...eggs, ...goldenEggs].forEach(o => { o.update(); o.draw(); });
-      checkCollisions(); checkMissedEggs(); updateBasket();
+      [...eggs, ...goldenEggs, ...hearts, ...hourglasses, ...bigBaskets].forEach(o => { o.update(); o.draw(); });
+      checkCollisions(); checkMissedEggs();
+      handlePowerupTimers();
       texts.forEach(t => { t.update(); t.draw(); }); texts = texts.filter(t => t.opacity > 0);
       scoreDisplay.textContent = `Punkty: ${score}`; livesDisplay.textContent = `Życia: ${lives}`;
       gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    function handlePowerupTimers() {
+      if (slowTimer > 0) {
+        slowTimer--;
+        if (slowTimer === 0) eggSpeedMultiplier = 1;
+      }
+      if (bigTimer > 0) {
+        bigTimer--;
+        if (bigTimer === 0) {
+          const basketCenter = basketX + basketWidth / 2;
+          basketWidth = baseBasketWidth;
+          basketX = Math.max(0, Math.min(canvas.width - basketWidth, basketCenter - basketWidth / 2));
+        }
+      }
     }
 
     function stopGameLoop() {
