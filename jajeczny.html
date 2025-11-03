@@ -55,7 +55,7 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 100px;
+      height: 190px;
       pointer-events: none;
       z-index: 5;
     }
@@ -153,7 +153,7 @@
   <div id="gameContainer">
     <div id="backgroundLayer"></div>
     <canvas id="gameCanvas" width="960" height="540"></canvas>
-    <canvas id="chickensCanvas" width="960" height="100"></canvas>
+    <canvas id="chickensCanvas" width="960" height="190"></canvas>
     <div id="levelUpBanner">Poziom 1</div>
     <div id="controls">
       <div class="ctrl-btn" id="leftBtn">◄</div>
@@ -228,6 +228,9 @@
         this.prepProgress = 0;
         this.layAnimation = 0;
         this.prepWindow = 60 + Math.random() * 20;
+        this.preDropCue = 0;
+        this.preDropPulse = Math.random() * Math.PI * 2;
+        this.cueWindow = 60;
         this.dropTimer = this.randomDropInterval();
       }
       randomDropInterval() {
@@ -244,13 +247,13 @@
           this.speedTarget = this.direction * (0.6 + Math.random() * 1.6);
         }
         if (Math.random() < 0.004) {
-          this.baseYTarget = 28 + Math.random() * 52;
+          this.baseYTarget = 30 + Math.random() * 100;
         }
         this.speed += (this.speedTarget - this.speed) * 0.04;
         this.baseY += (this.baseYTarget - this.baseY) * 0.03;
         this.verticalPhase += this.verticalSpeed;
         const oscillation = Math.sin(this.verticalPhase) * this.verticalAmplitude;
-        this.y = Math.max(18, Math.min(92, this.baseY + oscillation));
+        this.y = Math.max(24, Math.min(150, this.baseY + oscillation));
         this.x += this.speed;
         if (this.x < 50) {
           this.x = 50;
@@ -264,6 +267,16 @@
         this.flapPhase += this.flapSpeed + Math.abs(this.speed) * 0.02;
         this.waddlePhase += 0.04 + Math.abs(this.speed) * 0.05;
         if (this.layAnimation > 0) this.layAnimation = Math.max(0, this.layAnimation - 0.08);
+        if (this.dropTimer <= this.cueWindow) {
+          const timeLeft = Math.max(0, this.dropTimer);
+          const targetCue = 1 - timeLeft / this.cueWindow;
+          this.preDropCue += (targetCue - this.preDropCue) * 0.25;
+          this.preDropPulse += 0.35 + this.preDropCue * 0.45;
+        } else {
+          this.preDropCue *= 0.9;
+          this.preDropPulse += 0.18;
+        }
+        this.preDropCue = Math.max(0, Math.min(1, this.preDropCue));
         this.dropTimer -= 1;
         if (this.dropTimer < this.prepWindow) {
           const ratio = Math.max(0, 1 - this.dropTimer / this.prepWindow);
@@ -279,20 +292,25 @@
           this.dropTimer = this.randomDropInterval();
           this.layAnimation = 1;
           this.prepProgress = 0;
+          this.preDropCue = 0;
         }
       }
       draw() {
         const lean = this.speed * 0.05;
         const bob = Math.sin(this.waddlePhase) * (2.5 + Math.abs(this.speed) * 0.6);
-        const prepSquash = this.prepProgress * 0.25;
-        const squat = this.prepProgress * 5 - this.layAnimation * 3;
-        const wingLift = Math.sin(this.flapPhase) * (0.35 + Math.abs(this.speed) * 0.1) + this.layAnimation * 0.6 - this.prepProgress * 0.4;
-        const headNod = Math.sin(this.waddlePhase * 1.5) * 2 - this.prepProgress * 3;
-        const tailFan = 0.4 + this.prepProgress * 0.6 + this.layAnimation * 0.4;
-        const legSwing = Math.sin(this.waddlePhase) * (6 + Math.abs(this.speed) * 3);
-        const bodyRotation = lean * 0.3 - this.prepProgress * 0.1;
+        const warningShake = Math.sin(this.preDropPulse) * this.preDropCue * 3;
+        const prepSquash = this.prepProgress * 0.25 + this.preDropCue * 0.15;
+        const squat = this.prepProgress * 5 + this.preDropCue * 8 - this.layAnimation * 3;
+        const wingLift = Math.sin(this.flapPhase) * (0.35 + Math.abs(this.speed) * 0.1)
+          + this.layAnimation * 0.6
+          - this.prepProgress * 0.4
+          + this.preDropCue * 1.1;
+        const headNod = Math.sin(this.waddlePhase * 1.5) * 2 - this.prepProgress * 3 - this.preDropCue * 6 + warningShake * 0.4;
+        const tailFan = 0.4 + this.prepProgress * 0.6 + this.layAnimation * 0.4 + this.preDropCue * 0.5;
+        const legSwing = Math.sin(this.waddlePhase) * (6 + Math.abs(this.speed) * 3) + warningShake * 0.6;
+        const bodyRotation = lean * 0.3 - this.prepProgress * 0.1 + this.preDropCue * 0.35;
         cctx.save();
-        cctx.translate(this.x, this.y + bob + squat);
+        cctx.translate(this.x, this.y + bob + squat + warningShake * 0.4);
         cctx.scale(this.direction, 1);
         
         // Shadow
@@ -354,9 +372,9 @@
         cctx.restore();
 
         // Belly highlight when preparing
-        if (this.prepProgress > 0.05) {
+        if (this.prepProgress > 0.05 || this.preDropCue > 0.05) {
           cctx.save();
-          cctx.globalAlpha = 0.35 + this.prepProgress * 0.35;
+          cctx.globalAlpha = 0.25 + this.prepProgress * 0.35 + this.preDropCue * 0.45;
           cctx.fillStyle = '#fff7d6';
           cctx.beginPath();
           cctx.ellipse(10, 6, 16, 12, 0, 0, Math.PI * 2);
@@ -392,8 +410,8 @@
 
         // Head
         cctx.save();
-        cctx.translate(28, -16 + headNod);
-        cctx.rotate(lean * 0.25 - this.prepProgress * 0.05);
+        cctx.translate(28 + this.preDropCue * 2, -16 + headNod - this.preDropCue * 4);
+        cctx.rotate(lean * 0.25 - this.prepProgress * 0.05 + this.preDropCue * 0.15);
         const headGradient = cctx.createRadialGradient(-2, -6, 2, 0, 0, 16);
         headGradient.addColorStop(0, '#ffffff');
         headGradient.addColorStop(1, '#ececf4');
@@ -426,15 +444,15 @@
         // Comb and wattle
         cctx.fillStyle = '#d13140';
         cctx.beginPath();
-        cctx.moveTo(-2, -10);
-        cctx.quadraticCurveTo(2, -18 - this.prepProgress * 2, 6, -10);
-        cctx.quadraticCurveTo(10, -18 - this.prepProgress * 3, 14, -8);
-        cctx.quadraticCurveTo(16, -14 - this.prepProgress * 1.5, 18, -6);
-        cctx.quadraticCurveTo(10, -4, 2, -6);
+        cctx.moveTo(-2, -10 - this.preDropCue * 2);
+        cctx.quadraticCurveTo(2, -18 - this.prepProgress * 2 - this.preDropCue * 3, 6, -10 - this.preDropCue * 1.5);
+        cctx.quadraticCurveTo(10, -18 - this.prepProgress * 3 - this.preDropCue * 2, 14, -8 - this.preDropCue);
+        cctx.quadraticCurveTo(16, -14 - this.prepProgress * 1.5 - this.preDropCue * 1.5, 18, -6);
+        cctx.quadraticCurveTo(10, -4 - this.preDropCue * 0.8, 2, -6 - this.preDropCue * 0.6);
         cctx.closePath();
         cctx.fill();
         cctx.beginPath();
-        cctx.ellipse(10, 4, 4, 6 + this.prepProgress * 3, 0, 0, Math.PI * 2);
+        cctx.ellipse(10, 4 + this.preDropCue * 2, 4, 6 + this.prepProgress * 3 + this.preDropCue * 2, 0, 0, Math.PI * 2);
         cctx.fill();
 
         cctx.restore(); // head
@@ -453,7 +471,7 @@
 
     function spawnEggFromChicken(x, yStart) {
       const dy = 4 + Math.random() * 1.5 + level * 0.3;
-      const startY = Math.max(60, Math.min(120, yStart));
+      const startY = Math.max(60, Math.min(160, yStart));
       if (Math.random() < goldenEggChance) goldenEggs.push(new GoldenEgg(x, startY, dy));
       else eggs.push(new Egg(x, startY, dy));
       maybeSpawnPowerup(x, startY);
@@ -461,7 +479,7 @@
 
     function maybeSpawnPowerup(x, yStart = 100) {
       const roll = Math.random();
-      const baseY = Math.max(60, Math.min(120, yStart));
+      const baseY = Math.max(60, Math.min(160, yStart));
       const dy = 3 + Math.random() * 1.2 + level * 0.2;
       if (roll < heartChance) hearts.push(new Heart(x, baseY, dy));
       else if (roll < heartChance + hourglassChance) hourglasses.push(new Hourglass(x, baseY, dy));
@@ -473,7 +491,7 @@
       const spacing = canvas.width / (count + 1);
       chickens = [];
       for (let i = 0; i < count; i++) {
-        chickens.push(new Chicken(spacing * (i + 1), 40 + Math.random() * 20));
+        chickens.push(new Chicken(spacing * (i + 1), 60 + Math.random() * 70));
       }
     }
 
