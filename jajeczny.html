@@ -154,11 +154,11 @@
     const spawnChanceBase = 0.0045;
     const spawnChanceGrowth = 0.0004;
     const goldenEggChance = 0.12;
-    const heartChance = 0.015;
-    const hourglassChance = 0.01;
-    const bigBasketChance = 0.01;
-    const baseBasketWidth = 120;
-    const poweredBasketWidth = 180;
+    const heartChance = 0.025;
+    const hourglassChance = 0.018;
+    const bigBasketChance = 0.018;
+    const baseBasketWidth = 108;
+    const poweredBasketWidth = 168;
     let nextLevelScore = 250;
     let slowTimer = 0, bigTimer = 0;
     let eggSpeedMultiplier = 1;
@@ -356,8 +356,9 @@
         const runLift = Math.cos(this.runPhase);
         const bob = this.moving ? Math.abs(runSwing) * 2 : 0;
 
-        const contactLeft = -basketWidth / 2 + 24;
-        const contactRight = basketWidth / 2 - 24;
+        const gripInset = Math.max(22, basketWidth * 0.22);
+        const contactLeft = -basketWidth / 2 + gripInset;
+        const contactRight = basketWidth / 2 - gripInset;
         this.leftHandWorld = centerX + contactLeft * this.facing;
         this.rightHandWorld = centerX + contactRight * this.facing;
         this.handWorldY = basketY;
@@ -455,7 +456,7 @@
       score = 0; lives = 3; level = 1; nextLevelScore = 250;
       basketWidth = baseBasketWidth;
       basketX = canvas.width / 2 - basketWidth / 2;
-      basketHeight = 40; speed = 12;
+      basketHeight = 36; speed = 12;
       eggs = []; goldenEggs = []; hearts = []; hourglasses = []; bigBaskets = []; texts = [];
       slowTimer = 0; bigTimer = 0; eggSpeedMultiplier = 1;
       runner = new Runner();
