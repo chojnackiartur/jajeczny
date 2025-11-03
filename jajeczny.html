@@ -22,9 +22,10 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      overflow: hidden;
     }
     #gameCanvas {
-      background: url('https://serwer2007468.home.pl/jajeczny/4381319.jpg') center/cover;
+      background: transparent;
       border: 3px solid #333;
       border-radius: 1rem;
       box-shadow: inset 0 -3vw 3vw rgba(0, 0, 0, 0.3);
@@ -33,6 +34,21 @@
       max-width: 1000px;
       height: auto;
       display: block;
+      position: relative;
+      z-index: 2;
+    }
+    #backgroundLayer {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 140%;
+      height: 140%;
+      background: url('https://serwer2007468.home.pl/jajeczny/4381319.jpg') center/cover;
+      filter: saturate(0.95) brightness(1.05);
+      transform: translate(-50%, -50%);
+      transition: transform 0.08s ease-out;
+      pointer-events: none;
+      z-index: 1;
     }
     #chickensCanvas {
       position: absolute;
@@ -113,6 +129,7 @@
     <div id="lives">Życia: 3</div>
   </div>
   <div id="gameContainer">
+    <div id="backgroundLayer"></div>
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <canvas id="chickensCanvas" width="960" height="100"></canvas>
     <div id="controls">
@@ -141,6 +158,7 @@
     const startScreen = document.getElementById('startScreen');
     const gameOverScreen = document.getElementById('gameOverScreen');
     const finalScore = document.getElementById('finalScore');
+    const backgroundLayer = document.getElementById('backgroundLayer');
 
     let score = 0, lives = 3, level = 1;
     let basketX, basketWidth, basketHeight, speed;
@@ -467,7 +485,7 @@
       levelDisplay.textContent = 'Poziom: 1';
       backgroundShiftX = 0;
       backgroundShiftY = 0;
-      canvas.style.backgroundPosition = '50% 50%';
+      if (backgroundLayer) backgroundLayer.style.transform = 'translate(-50%, -50%)';
       gameRunning = true;
       startChickenLoop();
       gameLoop();
@@ -565,14 +583,20 @@
     }
 
     function applyBackgroundParallax() {
+      if (!backgroundLayer) return;
+      const displayWidth = canvas.clientWidth || canvas.width;
+      const displayHeight = canvas.clientHeight || canvas.height;
       const basketCenter = basketX + basketWidth / 2;
       const normalizedCenter = canvas.width > 0 ? basketCenter / canvas.width : 0.5;
-      const targetShiftX = (normalizedCenter - 0.5) * 8;
       const runCycle = runner ? Math.sin(runner.runPhase * 1.4) : 0;
-      const targetShiftY = runner ? (runner.moving ? runCycle * -2.2 : runCycle * -0.6) : 0;
-      backgroundShiftX += (targetShiftX - backgroundShiftX) * 0.1;
-      backgroundShiftY += (targetShiftY - backgroundShiftY) * 0.12;
-      canvas.style.backgroundPosition = `${50 + backgroundShiftX}% ${50 + backgroundShiftY}%`;
+      const lateralRange = displayWidth * 0.18;
+      const strideInfluenceX = runCycle * 6;
+      const targetShiftX = (normalizedCenter - 0.5) * lateralRange + strideInfluenceX;
+      const strideAmplitude = runner ? (runner.moving ? displayHeight * 0.033 : displayHeight * 0.011) : 0;
+      const targetShiftY = runner ? runCycle * -strideAmplitude : 0;
+      backgroundShiftX += (targetShiftX - backgroundShiftX) * 0.08;
+      backgroundShiftY += (targetShiftY - backgroundShiftY) * 0.1;
+      backgroundLayer.style.transform = `translate(-50%, -50%) translate(${backgroundShiftX.toFixed(2)}px, ${backgroundShiftY.toFixed(2)}px)`;
     }
     function addText(x, y, text, color) { texts.push(new FloatingText(x, y, text, color)); }
 
