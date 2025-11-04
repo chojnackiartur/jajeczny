@@ -12,40 +12,29 @@
     body {
       margin: 0;
       background: radial-gradient(circle at top, #fdf6e3, #cbb48d);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
       font-family: "Comic Sans MS", cursive;
       min-height: calc(var(--vh, 1vh) * 100);
       width: 100%;
       overflow: hidden;
       color: #333;
-      padding-top: calc(env(safe-area-inset-top, 0) + 70px);
-      padding-bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
-      box-sizing: border-box;
+      position: relative;
     }
     #gameContainer {
-      margin: 0 0 clamp(1.5rem, 5vh, 3.5rem);
-      width: min(96vw, 1000px);
-      padding-bottom: clamp(110px, 20vh, 180px);
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      position: fixed;
+      inset: 0;
       overflow: hidden;
+      z-index: 0;
     }
     #gameCanvas {
       background: transparent;
       border: 3px solid #333;
       border-radius: 1rem;
       box-shadow: inset 0 -3vw 3vw rgba(0, 0, 0, 0.3);
-      aspect-ratio: 16 / 9;
-      width: min(96vw, 1000px);
-      max-width: 100%;
-      height: auto;
-      display: block;
-      position: relative;
+      position: absolute;
+      top: 0;
+      left: 0;
       z-index: 2;
+      display: block;
     }
     #backgroundLayer {
       position: absolute;
@@ -64,8 +53,6 @@
       position: absolute;
       top: 0;
       left: 0;
-      width: 100%;
-      height: clamp(190px, 22vh, 240px);
       pointer-events: none;
       z-index: 5;
     }
@@ -117,10 +104,6 @@
       box-shadow: 0 12px 24px rgba(0,0,0,0.3);
     }
     @media (max-width: 900px) {
-      #gameContainer {
-        width: min(98vw, 960px);
-        padding-bottom: clamp(120px, 22vh, 200px);
-      }
       #gameCanvas {
         border-width: 2px;
       }
@@ -129,9 +112,6 @@
       }
     }
     @media (max-width: 600px) {
-      body {
-        padding-top: calc(env(safe-area-inset-top, 0) + 64px);
-      }
       #hud {
         font-size: 0.95rem;
         gap: 8px;
@@ -149,20 +129,11 @@
         align-items: stretch;
         text-align: center;
       }
-      #gameContainer {
-        width: 100vw;
-        padding-bottom: clamp(130px, 26vh, 220px);
-      }
       #controls {
         width: min(94vw, 520px);
       }
     }
     @media (orientation: landscape) and (max-height: 520px) {
-      body {
-        padding-top: calc(env(safe-area-inset-top, 0) + 42px);
-        padding-bottom: calc(env(safe-area-inset-bottom, 0) + 18px);
-        justify-content: center;
-      }
       #hud {
         padding: calc(env(safe-area-inset-top, 0) + 6px) 14px 8px;
         font-size: 1rem;
@@ -170,10 +141,6 @@
         width: min(90vw, 620px);
         left: 50%;
         transform: translateX(-50%);
-      }
-      #gameContainer {
-        margin: 0;
-        padding-bottom: 0;
       }
       #controls {
         width: min(88vw, 520px);
@@ -186,7 +153,7 @@
       }
     }
     #startScreen, #gameOverScreen {
-      position: absolute;
+      position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
@@ -274,50 +241,50 @@
     const backgroundLayer = document.getElementById('backgroundLayer');
     const levelUpBanner = document.getElementById('levelUpBanner');
     const controls = document.getElementById('controls');
-    const gameContainer = document.getElementById('gameContainer');
-    const hud = document.getElementById('hud');
+
+    const baseCanvasWidth = canvas.width;
+    const baseCanvasHeight = canvas.height;
 
     const updateViewportUnits = () => {
       const vh = window.innerHeight * 0.01;
       document.documentElement.style.setProperty('--vh', `${vh}px`);
     };
 
-    const aspectRatio = canvas.width / canvas.height;
-
     const applyGameSizing = () => {
-      if (!gameContainer) return;
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      const hudHeight = hud ? hud.offsetHeight : 0;
-      const controlsActive = controls && !controls.classList.contains('inactive');
-      const controlsHeight = controlsActive && controls ? controls.offsetHeight : 0;
-      const topPadding = hudHeight + 16;
-      const bottomPadding = (controlsActive ? controlsHeight + 24 : 24);
-      let availableHeight = viewportHeight - topPadding - bottomPadding;
-      if (availableHeight < 200) availableHeight = Math.max(availableHeight, viewportHeight * 0.45);
-      if (availableHeight < 200) availableHeight = 200;
-      const widthLimit = Math.min(viewportWidth * 0.96, 1000);
-      const widthFromViewport = Math.max(1, viewportWidth - 24);
-      const widthFromHeight = availableHeight * aspectRatio;
-      let targetWidth = Math.min(widthLimit, widthFromViewport, widthFromHeight);
-      if (!isFinite(targetWidth) || targetWidth <= 0) {
-        targetWidth = Math.min(widthLimit, widthFromViewport);
-      }
-      const appliedWidth = Math.max(1, targetWidth);
-      const displayHeight = appliedWidth / aspectRatio;
+      const scale = Math.min(
+        viewportWidth / baseCanvasWidth,
+        viewportHeight / baseCanvasHeight
+      );
+      const displayWidth = baseCanvasWidth * scale;
+      const displayHeight = baseCanvasHeight * scale;
+      const offsetX = (viewportWidth - displayWidth) / 2;
+      const offsetY = (viewportHeight - displayHeight) / 2;
 
-      gameContainer.style.width = `${appliedWidth}px`;
-      canvas.style.width = `${appliedWidth}px`;
+      canvas.style.width = `${displayWidth}px`;
+      canvas.style.height = `${displayHeight}px`;
+      canvas.style.left = `${offsetX}px`;
+      canvas.style.top = `${offsetY}px`;
+      canvas.style.transform = 'none';
 
       if (chickenCanvas) {
-        chickenCanvas.style.width = `${appliedWidth}px`;
-        const chickensHeight = Math.min(displayHeight * 0.42, 260);
-        chickenCanvas.style.height = `${chickensHeight}px`;
+        const chickensHeightRatio = chickenCanvas.height / baseCanvasHeight;
+        chickenCanvas.style.width = `${displayWidth}px`;
+        chickenCanvas.style.height = `${displayHeight * chickensHeightRatio}px`;
+        chickenCanvas.style.left = `${offsetX}px`;
+        chickenCanvas.style.top = `${offsetY}px`;
+        chickenCanvas.style.transform = 'none';
       }
 
       if (backgroundLayer) {
-        backgroundLayer.style.width = `${appliedWidth * 1.4}px`;
+        const centerX = offsetX + displayWidth / 2;
+        const centerY = offsetY + displayHeight / 2;
+        backgroundLayer.style.width = `${displayWidth * 1.4}px`;
         backgroundLayer.style.height = `${displayHeight * 1.4}px`;
+        backgroundLayer.style.left = `${centerX}px`;
+        backgroundLayer.style.top = `${centerY}px`;
+        backgroundLayer.style.transform = 'translate(-50%, -50%)';
       }
     };
 
