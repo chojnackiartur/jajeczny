@@ -2,9 +2,13 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, height=device-height, viewport-fit=cover" />
   <title>Jajeczny Milioner – Latające Kurki Edition</title>
   <style>
+    html {
+      height: 100%;
+      width: 100%;
+    }
     body {
       margin: 0;
       background: radial-gradient(circle at top, #fdf6e3, #cbb48d);
@@ -12,12 +16,18 @@
       flex-direction: column;
       align-items: center;
       font-family: "Comic Sans MS", cursive;
-      height: 100vh;
+      min-height: calc(var(--vh, 1vh) * 100);
+      width: 100%;
       overflow: hidden;
       color: #333;
+      padding-top: calc(env(safe-area-inset-top, 0) + 70px);
+      padding-bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
+      box-sizing: border-box;
     }
     #gameContainer {
-      margin: 10em 0;
+      margin: 0 0 clamp(1.5rem, 5vh, 3.5rem);
+      width: min(96vw, 1000px);
+      padding-bottom: clamp(110px, 20vh, 180px);
       position: relative;
       display: flex;
       flex-direction: column;
@@ -30,8 +40,8 @@
       border-radius: 1rem;
       box-shadow: inset 0 -3vw 3vw rgba(0, 0, 0, 0.3);
       aspect-ratio: 16 / 9;
-      width: 90vw;
-      max-width: 1000px;
+      width: min(96vw, 1000px);
+      max-width: 100%;
       height: auto;
       display: block;
       position: relative;
@@ -55,7 +65,7 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 190px;
+      height: clamp(190px, 22vh, 240px);
       pointer-events: none;
       z-index: 5;
     }
@@ -64,7 +74,7 @@
       justify-content: space-around;
       align-items: center;
       width: 100%;
-      padding: 10px;
+      padding: calc(env(safe-area-inset-top, 0) + 10px) 16px 10px;
       background: rgba(0, 0, 0, 0.5);
       color: #fff;
       font-size: 1.2rem;
@@ -72,21 +82,29 @@
       top: 0;
       left: 0;
       z-index: 10;
+      box-sizing: border-box;
     }
     #controls {
       display: flex;
       justify-content: space-between;
-      width: 90%;
-      max-width: 1000px;
-      position: absolute;
-      bottom: 20px;
+      width: min(92vw, 560px);
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 0) + 28px);
       left: 50%;
-      transform: translateX(-50%);
+      transform: translate(-50%, 0);
       z-index: 15;
+      gap: clamp(24px, 10vw, 64px);
+      opacity: 1;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+    #controls.inactive {
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 60px);
     }
     .ctrl-btn {
-      width: 80px;
-      height: 80px;
+      width: clamp(72px, 18vw, 96px);
+      height: clamp(72px, 18vw, 96px);
       border-radius: 50%;
       background: rgba(0,0,0,0.6);
       color: white;
@@ -96,6 +114,76 @@
       justify-content: center;
       user-select: none;
       touch-action: none;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+    }
+    @media (max-width: 900px) {
+      #gameContainer {
+        width: min(98vw, 960px);
+        padding-bottom: clamp(120px, 22vh, 200px);
+      }
+      #gameCanvas {
+        border-width: 2px;
+      }
+      #hud {
+        font-size: 1.05rem;
+      }
+    }
+    @media (max-width: 600px) {
+      body {
+        padding-top: calc(env(safe-area-inset-top, 0) + 64px);
+      }
+      #hud {
+        font-size: 0.95rem;
+        gap: 8px;
+      }
+      #controls {
+        gap: clamp(28px, 14vw, 80px);
+      }
+      .ctrl-btn {
+        font-size: 1.8rem;
+      }
+    }
+    @media (max-width: 420px) {
+      #hud {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+      }
+      #gameContainer {
+        width: 100vw;
+        padding-bottom: clamp(130px, 26vh, 220px);
+      }
+      #controls {
+        width: min(94vw, 520px);
+      }
+    }
+    @media (orientation: landscape) and (max-height: 520px) {
+      body {
+        padding-top: calc(env(safe-area-inset-top, 0) + 42px);
+        padding-bottom: calc(env(safe-area-inset-bottom, 0) + 18px);
+        justify-content: center;
+      }
+      #hud {
+        padding: calc(env(safe-area-inset-top, 0) + 6px) 14px 8px;
+        font-size: 1rem;
+        border-radius: 12px;
+        width: min(90vw, 620px);
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      #gameContainer {
+        margin: 0;
+        padding-bottom: 0;
+      }
+      #controls {
+        width: min(88vw, 520px);
+        gap: clamp(18px, 8vw, 44px);
+        bottom: calc(env(safe-area-inset-bottom, 0) + 16px);
+      }
+      .ctrl-btn {
+        width: clamp(64px, 16vw, 88px);
+        height: clamp(64px, 16vw, 88px);
+      }
     }
     #startScreen, #gameOverScreen {
       position: absolute;
@@ -108,6 +196,8 @@
       border-radius: 12px;
       text-align: center;
       z-index: 20;
+      max-width: min(90vw, 420px);
+      box-sizing: border-box;
     }
     button { 
       background: #4CAF50;
@@ -155,7 +245,7 @@
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <canvas id="chickensCanvas" width="960" height="190"></canvas>
     <div id="levelUpBanner">Poziom 1</div>
-    <div id="controls">
+    <div id="controls" class="inactive">
       <div class="ctrl-btn" id="leftBtn">◄</div>
       <div class="ctrl-btn" id="rightBtn">►</div>
     </div>
@@ -183,6 +273,64 @@
     const finalScore = document.getElementById('finalScore');
     const backgroundLayer = document.getElementById('backgroundLayer');
     const levelUpBanner = document.getElementById('levelUpBanner');
+    const controls = document.getElementById('controls');
+    const gameContainer = document.getElementById('gameContainer');
+    const hud = document.getElementById('hud');
+
+    const updateViewportUnits = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+
+    const aspectRatio = canvas.width / canvas.height;
+
+    const applyGameSizing = () => {
+      if (!gameContainer) return;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const hudHeight = hud ? hud.offsetHeight : 0;
+      const controlsActive = controls && !controls.classList.contains('inactive');
+      const controlsHeight = controlsActive && controls ? controls.offsetHeight : 0;
+      const topPadding = hudHeight + 16;
+      const bottomPadding = (controlsActive ? controlsHeight + 24 : 24);
+      let availableHeight = viewportHeight - topPadding - bottomPadding;
+      if (availableHeight < 200) availableHeight = Math.max(availableHeight, viewportHeight * 0.45);
+      if (availableHeight < 200) availableHeight = 200;
+      const widthLimit = Math.min(viewportWidth * 0.96, 1000);
+      const widthFromViewport = Math.max(1, viewportWidth - 24);
+      const widthFromHeight = availableHeight * aspectRatio;
+      let targetWidth = Math.min(widthLimit, widthFromViewport, widthFromHeight);
+      if (!isFinite(targetWidth) || targetWidth <= 0) {
+        targetWidth = Math.min(widthLimit, widthFromViewport);
+      }
+      const appliedWidth = Math.max(1, targetWidth);
+      const displayHeight = appliedWidth / aspectRatio;
+
+      gameContainer.style.width = `${appliedWidth}px`;
+      canvas.style.width = `${appliedWidth}px`;
+
+      if (chickenCanvas) {
+        chickenCanvas.style.width = `${appliedWidth}px`;
+        const chickensHeight = Math.min(displayHeight * 0.42, 260);
+        chickenCanvas.style.height = `${chickensHeight}px`;
+      }
+
+      if (backgroundLayer) {
+        backgroundLayer.style.width = `${appliedWidth * 1.4}px`;
+        backgroundLayer.style.height = `${displayHeight * 1.4}px`;
+      }
+    };
+
+    const handleViewportChange = () => {
+      updateViewportUnits();
+      applyGameSizing();
+    };
+
+    handleViewportChange();
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('orientationchange', () => {
+      setTimeout(handleViewportChange, 200);
+    });
 
     let score = 0, lives = 3, level = 1;
     let basketX, basketWidth, basketHeight, speed;
@@ -763,7 +911,7 @@
       basketX = canvas.width / 2 - basketWidth / 2;
       basketHeight = 36; speed = 12;
       eggs = []; goldenEggs = []; hearts = []; hourglasses = []; bigBaskets = []; texts = [];
-      slowTimer = 0; bigTimer = 0; eggSpeedMultiplier = 0.5;
+      slowTimer = 0; bigTimer = 0; eggSpeedMultiplier = 1;
       runner = new Runner();
       setupChickens();
       scoreDisplay.textContent = 'Punkty: 0';
@@ -780,6 +928,8 @@
         clearTimeout(levelBannerTimeout);
         levelBannerTimeout = null;
       }
+      if (controls) controls.classList.remove('inactive');
+      applyGameSizing();
       gameRunning = true;
       startChickenLoop();
       gameLoop();
@@ -1020,6 +1170,8 @@
       gameOverScreen.style.display = 'block';
       stopGameLoop();
       stopChickenLoop();
+      if (controls) controls.classList.add('inactive');
+      applyGameSizing();
     }
 
     function gameLoop() {
