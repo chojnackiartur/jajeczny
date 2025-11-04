@@ -157,6 +157,34 @@
         width: min(94vw, 520px);
       }
     }
+    @media (orientation: landscape) and (max-height: 520px) {
+      body {
+        padding-top: calc(env(safe-area-inset-top, 0) + 42px);
+        padding-bottom: calc(env(safe-area-inset-bottom, 0) + 18px);
+        justify-content: center;
+      }
+      #hud {
+        padding: calc(env(safe-area-inset-top, 0) + 6px) 14px 8px;
+        font-size: 1rem;
+        border-radius: 12px;
+        width: min(90vw, 620px);
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      #gameContainer {
+        margin: 0;
+        padding-bottom: 0;
+      }
+      #controls {
+        width: min(88vw, 520px);
+        gap: clamp(18px, 8vw, 44px);
+        bottom: calc(env(safe-area-inset-bottom, 0) + 16px);
+      }
+      .ctrl-btn {
+        width: clamp(64px, 16vw, 88px);
+        height: clamp(64px, 16vw, 88px);
+      }
+    }
     #startScreen, #gameOverScreen {
       position: absolute;
       top: 50%;
@@ -233,16 +261,6 @@
     <button id="restartBtn">Zagraj ponownie</button>
   </div>
   <script>
-    const updateViewportUnits = () => {
-      const vh = window.innerHeight * 0.01;
-      document.documentElement.style.setProperty('--vh', `${vh}px`);
-    };
-    updateViewportUnits();
-    window.addEventListener('resize', updateViewportUnits);
-    window.addEventListener('orientationchange', () => {
-      setTimeout(updateViewportUnits, 200);
-    });
-
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const chickenCanvas = document.getElementById('chickensCanvas');
@@ -256,6 +274,63 @@
     const backgroundLayer = document.getElementById('backgroundLayer');
     const levelUpBanner = document.getElementById('levelUpBanner');
     const controls = document.getElementById('controls');
+    const gameContainer = document.getElementById('gameContainer');
+    const hud = document.getElementById('hud');
+
+    const updateViewportUnits = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+
+    const aspectRatio = canvas.width / canvas.height;
+
+    const applyGameSizing = () => {
+      if (!gameContainer) return;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const hudHeight = hud ? hud.offsetHeight : 0;
+      const controlsActive = controls && !controls.classList.contains('inactive');
+      const controlsHeight = controlsActive && controls ? controls.offsetHeight : 0;
+      const topPadding = hudHeight + 16;
+      const bottomPadding = (controlsActive ? controlsHeight + 24 : 24);
+      let availableHeight = viewportHeight - topPadding - bottomPadding;
+      if (availableHeight < 200) availableHeight = Math.max(availableHeight, viewportHeight * 0.45);
+      if (availableHeight < 200) availableHeight = 200;
+      const widthLimit = Math.min(viewportWidth * 0.96, 1000);
+      const widthFromViewport = Math.max(1, viewportWidth - 24);
+      const widthFromHeight = availableHeight * aspectRatio;
+      let targetWidth = Math.min(widthLimit, widthFromViewport, widthFromHeight);
+      if (!isFinite(targetWidth) || targetWidth <= 0) {
+        targetWidth = Math.min(widthLimit, widthFromViewport);
+      }
+      const appliedWidth = Math.max(1, targetWidth);
+      const displayHeight = appliedWidth / aspectRatio;
+
+      gameContainer.style.width = `${appliedWidth}px`;
+      canvas.style.width = `${appliedWidth}px`;
+
+      if (chickenCanvas) {
+        chickenCanvas.style.width = `${appliedWidth}px`;
+        const chickensHeight = Math.min(displayHeight * 0.42, 260);
+        chickenCanvas.style.height = `${chickensHeight}px`;
+      }
+
+      if (backgroundLayer) {
+        backgroundLayer.style.width = `${appliedWidth * 1.4}px`;
+        backgroundLayer.style.height = `${displayHeight * 1.4}px`;
+      }
+    };
+
+    const handleViewportChange = () => {
+      updateViewportUnits();
+      applyGameSizing();
+    };
+
+    handleViewportChange();
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('orientationchange', () => {
+      setTimeout(handleViewportChange, 200);
+    });
 
     let score = 0, lives = 3, level = 1;
     let basketX, basketWidth, basketHeight, speed;
@@ -854,6 +929,7 @@
         levelBannerTimeout = null;
       }
       if (controls) controls.classList.remove('inactive');
+      applyGameSizing();
       gameRunning = true;
       startChickenLoop();
       gameLoop();
@@ -1095,6 +1171,7 @@
       stopGameLoop();
       stopChickenLoop();
       if (controls) controls.classList.add('inactive');
+      applyGameSizing();
     }
 
     function gameLoop() {
